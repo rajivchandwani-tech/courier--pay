@@ -1,0 +1,4 @@
+Invoice #,Invoice Date,Client,Phone,Email,Service,Amount,GST,Total,Due Date,Paid On,Status,Notes
+SAMPLE-1001,2026-10-01,Example Client One,,accounts@example.com,Local Delivery,12500,2250,14750,2026-10-31,,pending,Sample purchase order 1001
+SAMPLE-1002,2026-10-02,Example Client Two,,billing@example.org,Overnight Courier,8000,1440,9440,2026-11-01,,pending,Sample delivery service
+SAMPLE-1003,2026-10-03,Example Client Three,,finance@example.net,Document Courier,5000,900,5900,2026-11-02,2026-10-04,paid,Sample invoice already paid

@@ -1,0 +1,19 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "version": 2,
+  "framework": null,
+  "functions": {
+    "api/chat.js": {
+      "maxDuration": 60
+    },
+    "api/ledger.js": {
+      "maxDuration": 30
+    },
+    "api/app-state.js": {
+      "maxDuration": 30
+    },
+    "api/activity.js": {
+      "maxDuration": 30
+    }
+  }
+}

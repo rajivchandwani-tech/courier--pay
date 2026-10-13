@@ -1,0 +1,9 @@
+{
+  "name": "courierpay-finance-assistant",
+  "version": "1.0.0",
+  "private": true,
+  "description": "CourierPay v5 with a secure server-side Gemini finance assistant",
+  "scripts": { "start": "node server.js" },
+  "dependencies": { "@neondatabase/serverless": "^1.2.0" },
+  "engines": { "node": ">=20" }
+}
