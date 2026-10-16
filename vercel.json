@@ -4,16 +4,16 @@
   "framework": null,
   "functions": {
     "api/chat.js": {
-      "maxDuration": 60
+      "maxDuration": 300
     },
     "api/ledger.js": {
-      "maxDuration": 30
+      "maxDuration": 60
     },
     "api/app-state.js": {
-      "maxDuration": 30
+      "maxDuration": 60
     },
     "api/activity.js": {
-      "maxDuration": 30
+      "maxDuration": 60
     }
   }
 }

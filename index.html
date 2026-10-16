@@ -3764,19 +3764,26 @@ function clearChat() {
   log.innerHTML = '';
   appendChatMessage('assistant', 'Chat cleared. What would you like to know about your records?');
 }
+// Keep the AI payload small. Sending all 282 invoices (~99 KB) blew the Vercel
+// function's time budget and produced FUNCTION_INVOCATION_TIMEOUT / 504s. Cap to
+// the most recent invoices by date, which is what answers "latest records".
+var CHAT_INVOICE_CAP = 60;
 function chatDataSnapshot() {
   var items = Array.isArray(invoices) ? invoices : [];
-  return items.filter(function(inv){return inv&&inv.status!=='draft';}).map(function (inv) {
+  return items.filter(function(inv){return inv&&inv.status!=='draft';})
+    .sort(function(a,b){return String(b.invdate||'').localeCompare(String(a.invdate||''));})
+    .slice(0, CHAT_INVOICE_CAP)
+    .map(function (inv) {
     return {
       number: inv.num || '', client: inv.client || '', service: inv.service || '',
       invoiceDate: inv.invdate || '', dueDate: inv.due || '',
       paidDate: inv.paiddate || '', amount: Number(inv.amount) || 0,
       gst: Number(inv.gst) || 0, status: getStatus(inv), notes: inv.notes || '',
-      payments: (Array.isArray(inv.partPayments) ? inv.partPayments : []).map(function (p) {
+      payments: (Array.isArray(inv.partPayments) ? inv.partPayments : []).slice(0, 10).map(function (p) {
         return { amount: Number(p.amount) || 0, date: p.date || '', mode: p.mode || '', reference: p.ref || '', reason: p.reason || '' };
       })
     };
-  }).sort(function(a,b){return String(b.invoiceDate).localeCompare(String(a.invoiceDate));});
+  });
 }
 function chatFinanceSnapshot() {
   return (Array.isArray(financeEntries)?financeEntries:[]).map(function(row){
