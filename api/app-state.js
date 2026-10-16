@@ -5,6 +5,7 @@ const MAX_INVOICES = 10000;
 
 function send(res, status, payload) {
   res.statusCode = status;
+  if (status === 204 || payload === '') { res.end(); return; }
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
   res.setHeader('Cache-Control', 'no-store');
   res.setHeader('X-Content-Type-Options', 'nosniff');
@@ -85,8 +86,17 @@ function cleanActivityEvents(input) {
 }
 
 module.exports = async function handler(req, res) {
+  // CORS preflight must be answered before the origin check — otherwise any
+  // cross-origin caller gets a 405 and the browser reports a generic network error.
+  if (req.method === 'OPTIONS') {
+    res.setHeader('Allow', 'GET, POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+    res.setHeader('Access-Control-Max-Age', '86400');
+    return send(res, 204, '');
+  }
   if (req.method !== 'GET' && req.method !== 'POST') {
-    res.setHeader('Allow', 'GET, POST');
+    res.setHeader('Allow', 'GET, POST, OPTIONS');
     return send(res, 405, { error: 'Method not allowed.' });
   }
   const origin = req.headers && req.headers.origin;
