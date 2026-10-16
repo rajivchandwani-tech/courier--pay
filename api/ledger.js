@@ -108,12 +108,20 @@ module.exports = async function handler(req, res) {
     if (body.operation === 'delete') {
       try {
         const deleted = await sql`DELETE FROM courierpay_finance_entries WHERE id = ${record.id} RETURNING id`;
+        console.log('ledger delete rows removed:', deleted.length, 'id:', record.id);
         if (deleted.length) {
           const ref = record.payee || record.vendor || '';
-          await sql`INSERT INTO courierpay_activity_events (event, client_id)
-            VALUES (jsonb_build_object('type','finance_entry_deleted','category','finance','recordId',${record.id}::text,
-                     'reference',${ref},'party',${ref},
-                     'amount',0,'transactionDate',${record.date},'summary','Finance entry deleted'), ${clientId})`;
+          try {
+            await sql`INSERT INTO courierpay_activity_events (event, client_id)
+              VALUES (jsonb_build_object('type','finance_entry_deleted','category','finance','recordId',${record.id}::text,
+                       'reference',${ref},'party',${ref},
+                       'amount',0,'transactionDate',${record.date},'summary','Finance entry deleted'), ${clientId})`;
+            console.log('ledger delete event logged for', record.id);
+          } catch (eventError) {
+            // The entry is already deleted; a failed audit write must not turn the
+            // whole operation into a 503 and make the UI think nothing happened.
+            console.error('ledger delete audit write failed:', eventError && eventError.message);
+          }
         }
         return send(res, 200, { saved: true, id: record.id, deleted: true });
       } catch (error) {
