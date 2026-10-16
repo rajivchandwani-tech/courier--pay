@@ -107,14 +107,17 @@ module.exports = async function handler(req, res) {
     // payload replayed against the DB used to resurrect a deleted entry.
     if (body.operation === 'delete') {
       try {
-        await sql`DELETE FROM courierpay_finance_entries WHERE id = ${record.id}`;
-        await sql`INSERT INTO courierpay_activity_events (event, client_id)
-          SELECT jsonb_build_object('type','finance_entry_deleted','category','finance','recordId',${record.id},
-                   'reference',COALESCE(${record.payee},${record.vendor},''),'party',COALESCE(${record.payee},${record.vendor},''),
-                   'amount',0,'transactionDate',${record.date},'summary','Finance entry deleted'), ${clientId}`;
+        const deleted = await sql`DELETE FROM courierpay_finance_entries WHERE id = ${record.id} RETURNING id`;
+        if (deleted.length) {
+          const ref = record.payee || record.vendor || '';
+          await sql`INSERT INTO courierpay_activity_events (event, client_id)
+            VALUES (jsonb_build_object('type','finance_entry_deleted','category','finance','recordId',${record.id}::text,
+                     'reference',${ref},'party',${ref},
+                     'amount',0,'transactionDate',${record.date},'summary','Finance entry deleted'), ${clientId})`;
+        }
         return send(res, 200, { saved: true, id: record.id, deleted: true });
       } catch (error) {
-        console.error('Shared ledger delete failed:', error.message);
+        console.error('Shared ledger delete failed:', error && error.message);
         return send(res, 503, { error: 'Shared ledger is temporarily unavailable. Try again later.' });
       }
     }
