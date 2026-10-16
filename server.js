@@ -287,14 +287,51 @@ async function chat(req, res) {
           : {
               model: activeModel,
               temperature: 0.2,
+              // The default max_tokens is far too small: a reasoning model spends
+              // its budget thinking and returns content:null with
+              // finish_reason="length", which surfaced as a 502 to the user.
+              max_tokens: 4000,
               messages: [
                 { role: 'system', content: instructions },
                 { role: 'user', content: requestText }
               ]
             }),
-        signal: AbortSignal.timeout(60000)
+        // 60s was not enough for a 50k-token prompt on a free-tier model.
+        signal: AbortSignal.timeout(180000)
       });
       result = await upstream.json().catch(() => ({}));
+      // A reasoning model can return content:null with finish_reason="length"
+      // when its token budget is spent thinking. Retry the same request with a
+      // larger budget rather than handing the user an empty answer.
+      if (upstream.ok && !isGemini) {
+        const content = result.choices?.[0]?.message?.content;
+        const finished = result.choices?.[0]?.finish_reason;
+        if ((!content || !String(content).trim()) && finished === 'length') {
+          console.warn(`${activeModel} hit the token limit; retrying with a larger budget.`);
+          const retry = await fetch(useOpenAI
+            ? 'https://api.openai.com/v1/chat/completions'
+            : useOpenRouter
+              ? 'https://openrouter.ai/api/v1/chat/completions'
+              : 'https://api.groq.com/openai/v1/chat/completions', {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              model: activeModel,
+              temperature: 0.2,
+              max_tokens: 16000,
+              messages: [
+                { role: 'system', content: instructions },
+                { role: 'user', content: requestText }
+              ]
+            }),
+            signal: AbortSignal.timeout(180000)
+          });
+          const retryBody = await retry.json().catch(() => ({}));
+          if (retry.ok && retryBody.choices?.[0]?.message?.content) {
+            result.choices = retryBody.choices;
+          }
+        }
+      }
       if (!isGemini || upstream.ok || ![429, 503].includes(upstream.status) || activeModel === models[models.length - 1]) break;
       console.warn(`${provider} model ${activeModel} is busy; trying next model.`);
     }
