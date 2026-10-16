@@ -3782,7 +3782,19 @@ async function sendChat() {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ prompt: prompt, context: contextEl.value.trim(), invoices: chatDataSnapshot(), financeEntries:chatFinanceSnapshot(), reportCalendar:chatReportCalendar() })
     });
-    var payload = await response.json();
+    // Deployment Protection / auth walls return HTML, not JSON. Guard the parse so
+    // the user sees the real cause instead of a bare "Unexpected token" error.
+    var contentType = (response.headers.get('content-type') || '').toLowerCase();
+    if (!contentType.includes('application/json')) {
+      throw new Error('The CourierPay site is showing a sign-in page instead of answering. Sign in to the protected deployment, or turn off Vercel Deployment Protection, then try again.');
+    }
+    var payload;
+    try { payload = await response.json(); }
+    catch (parseError) {
+      var snippet = await response.text().catch(() => '');
+      snippet = snippet.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 120);
+      throw new Error('The server returned a non-JSON response (' + response.status + '). ' + (snippet ? 'It starts with: "' + snippet + '"' : 'The AI provider or deployment protection may be blocking the request.'));
+    }
     if (!response.ok) throw new Error(payload.error || 'The assistant could not answer right now.');
     appendChatMessage('assistant', payload.answer || 'No answer was returned.');
   } catch (error) {

@@ -316,22 +316,36 @@ async function chat(req, res) {
 
 const mime = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.txt': 'text/plain; charset=utf-8' };
 const server = http.createServer(async (req, res) => {
-  const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
-  if (req.method === 'POST' && url.pathname === '/api/chat') return chat(req, res);
-  if (url.pathname === '/api/app-state') return appStateHandler(req, res);
-  if (url.pathname === '/api/ledger') return ledgerHandler(req, res);
-  if (url.pathname === '/api/activity') return activityHandler(req, res);
-  if (req.method !== 'GET' && req.method !== 'HEAD') return send(res, 405, { error: 'Method not allowed.' });
-  const pathname = decodeURIComponent(url.pathname);
-  const requested = pathname === '/' ? 'index.html' : pathname.replace(/^\/+/, '');
-  const file = path.resolve(ROOT, requested);
-  if (!file.startsWith(ROOT + path.sep) || requested === '.env' || requested.startsWith('.env/')) return send(res, 404, { error: 'Not found.' });
-  fs.readFile(file, (error, data) => {
-    if (error) return send(res, 404, { error: 'Not found.' });
+  try {
+    const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+    if (req.method === 'POST' && url.pathname === '/api/chat') return await chat(req, res);
+    if (url.pathname === '/api/app-state') return await appStateHandler(req, res);
+    if (url.pathname === '/api/ledger') return await ledgerHandler(req, res);
+    if (url.pathname === '/api/activity') return await activityHandler(req, res);
+    if (req.method !== 'GET' && req.method !== 'HEAD') return send(res, 405, { error: 'Method not allowed.' });
+    const pathname = decodeURIComponent(url.pathname);
+    const requested = pathname === '/' ? 'index.html' : pathname.replace(/^\/+/, '');
+    const file = path.resolve(ROOT, requested);
+    if (!file.startsWith(ROOT + path.sep) || requested === '.env' || requested.startsWith('.env/')) return send(res, 404, { error: 'Not found.' });
+    let data;
+    try { data = fs.readFileSync(file); }
+    catch { return send(res, 404, { error: 'Not found.' }); }
     const type = mime[path.extname(file)] || 'application/octet-stream';
     res.writeHead(200, { 'Content-Type': type, 'X-Content-Type-Options': 'nosniff', 'Cache-Control': 'no-store' });
     res.end(req.method === 'HEAD' ? undefined : data);
-  });
+  } catch (error) {
+    // Never let an unhandled error escape as plain text — the chat UI parses JSON.
+    console.error('Unhandled request error:', error && error.stack || error);
+    send(res, 500, { error: 'The server hit an unexpected error. Check the server logs and try again.' });
+  }
+});
+
+process.on('uncaughtException', error => {
+  console.error('Uncaught exception (server stays up):', error && error.stack || error);
+});
+
+process.on('unhandledRejection', reason => {
+  console.error('Unhandled rejection (server stays up):', reason);
 });
 
 if (require.main === module) {
