@@ -826,6 +826,20 @@ function today()   { return new Date().toISOString().slice(0,10); }
 function daysUntil(d) { return Math.ceil((new Date(d) - new Date()) / 86400000); }
 function daysOverdue(d) { return Math.floor((new Date() - new Date(d)) / 86400000); }
 
+// Normalise a user-entered date into YYYY-MM-DD. Handles DD-MM-YYYY and
+// DD/MM/YYYY (which used to be stored verbatim as e.g. "07-10-2026") and
+// silently fixes over-long years like "20226-10-11".
+function normDate(value) {
+  if (typeof value !== 'string') return '';
+  const s = value.trim();
+  if (!s) return '';
+  let m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  if (m) return m[1].slice(0, 4) + '-' + m[2].padStart(2, '0') + '-' + m[3].padStart(2, '0');
+  m = s.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})$/);
+  if (m) return m[3].slice(0, 4) + '-' + m[2].padStart(2, '0') + '-' + m[1].padStart(2, '0');
+  return '';
+}
+
 function getStatus(inv) {
   if (inv.status === 'partial') return 'partial';
   if (inv.status === 'paid' || inv.status === 'draft') return inv.status;
@@ -918,13 +932,35 @@ function localLoad() {
   if (ctr)  { invCounter = parseInt(ctr)||100; }
   if (ledger) { try { financeEntries = JSON.parse(ledger).filter(function(row){return row&&row.id&&['purchase','salary','utilities'].indexOf(row.kind)>=0;}); } catch(e) { financeEntries=[]; } }
   // Recalculate all statuses on load (fixes stale status bug)
-  invoices = invoices.map(function(i) {
-    i.id = +i.id; // normalize id to number
-    if (i.paiddate && i.paiddate !== '' && i.paiddate !== 'null' && i.status !== 'partial') i.status = 'paid';
-    if (!i.partPayments) i.partPayments = [];
-    return i;
-  });
-}
+    invoices = invoices.map(function(i) {
+      i.id = +i.id; // normalize id to number
+      if (i.paiddate && i.paiddate !== '' && i.paiddate !== 'null' && i.status !== 'partial') i.status = 'paid';
+      if (!i.partPayments) i.partPayments = [];
+      return i;
+    });
+    // Repair dates saved before validation existed (DD-MM-YYYY, over-long years).
+    var dateFixed = 0;
+    invoices = invoices.map(function(i) {
+      ['invdate','due','paiddate'].forEach(function(key){
+        if (typeof i[key] === 'string' && i[key]) {
+          var fixed = normDate(i[key]);
+          if (fixed && fixed !== i[key]) { i[key] = fixed; dateFixed++; }
+        }
+      });
+      return i;
+    });
+    financeEntries = (financeEntries||[]).map(function(row){
+      if (!row) return row;
+      ['date','dueDate','paidDate'].forEach(function(key){
+        if (typeof row[key] === 'string' && row[key]) {
+          var fixed = normDate(row[key]);
+          if (fixed && fixed !== row[key]) { row[key] = fixed; dateFixed++; }
+        }
+      });
+      return row;
+    });
+    if (dateFixed > 0) { localSave(); }
+  }
 
 // New financial entries use a separate store; existing invoice records are untouched.
 function ledgerEscape(value) {
@@ -1047,6 +1083,8 @@ async function loadOlderActivity() {
 }
 async function appStateApi(method,payload) {
   var response=await fetch('/api/app-state',{method:method,headers:{'Content-Type':'application/json'},cache:'no-store',body:payload?JSON.stringify(payload):undefined});
+  var contentType=(response.headers.get('content-type')||'').toLowerCase();
+  if(!contentType.includes('application/json'))throw new Error('Sign in to the protected CourierPay site to use shared data.');
   var data=await response.json().catch(function(){return {};});
   if(!response.ok){var error=new Error(data.error||('Shared data request failed ('+response.status+').'));error.status=response.status;error.data=data;throw error;}
   return data;
@@ -1594,13 +1632,13 @@ function openNewModal() {
 function addInvoice() {
   var client = document.getElementById('f_client').value.trim();
   var amount = parseFloat(document.getElementById('f_amount').value)||0;
-  var due    = document.getElementById('f_due').value;
+  var due    = normDate(document.getElementById('f_due').value);
   if (!client||!amount||!due) { toast('w','Missing Fields','Client, amount and due date are required.'); return; }
-  var pd = document.getElementById('f_paiddate').value || '';
+  var pd = normDate(document.getElementById('f_paiddate').value || '');
   var inv = {
     id:      Date.now(),
     num:     document.getElementById('f_invnum').value || 'INV-'+invCounter,
-    invdate: document.getElementById('f_invdate').value || today(),
+    invdate: normDate(document.getElementById('f_invdate').value || today()),
     client:  client,
     phone:   document.getElementById('f_phone').value,
     email:   document.getElementById('f_email').value.trim(),
@@ -1651,9 +1689,9 @@ function saveEdit() {
   var id     = +document.getElementById('e_id').value;
   var client = document.getElementById('e_client').value.trim();
   var amount = parseFloat(document.getElementById('e_amount').value)||0;
-  var due    = document.getElementById('e_due').value;
+  var due    = normDate(document.getElementById('e_due').value);
   if (!client||!amount||!due) { toast('w','Missing Fields','Client, amount and due date are required.'); return; }
-  var pd = document.getElementById('e_paiddate').value||'';
+  var pd = normDate(document.getElementById('e_paiddate').value||'');
   var st = document.getElementById('e_status').value;
   if (pd) st = 'paid';
   invoices = invoices.map(function(i){
@@ -2218,14 +2256,14 @@ function importCSV(evt) {
       var inv={
         id:Date.now()+j,
         num:ni>=0?cols[ni]:'INV-IMP-'+j,
-        invdate:ii>=0?cols[ii]:today(),
+        invdate:ii>=0?normDate(cols[ii]):today(),
         client:ci>=0?cols[ci]:'Unknown',
         phone:pi>=0?cols[pi]:'',
         service:sri>=0?cols[sri]:'Local Delivery',
         amount:ai>=0?parseFloat(cols[ai])||0:0,
         gst:gi>=0?parseFloat(cols[gi])||0:0,
-        due:di>=0?cols[di]:'',
-        paiddate:pai>=0?cols[pai]:'',
+        due:di>=0?normDate(cols[di]):'',
+        paiddate:pai>=0?normDate(cols[pai]):'',
         status:si>=0?cols[si]:'pending', email:fi(/email/i)>=0?cols[fi(/email/i)]:'',
         notes:noi>=0?cols[noi]:'',
         _source:'csv-import'

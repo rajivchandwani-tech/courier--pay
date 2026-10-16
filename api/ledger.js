@@ -38,6 +38,12 @@ function validRecord(record) {
   if (typeof record.id !== 'string' || record.id.length < 8 || record.id.length > 100) return false;
   if (!['purchase', 'salary', 'utilities'].includes(record.kind)) return false;
   if (typeof record.date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(record.date)) return false;
+  // Optional date fields must be valid ISO dates too — a stray extra digit (e.g.
+  // "20226-10-11") used to pass validation and surface as a broken date in reports.
+  for (const dateKey of ['dueDate', 'paidDate']) {
+    if (record[dateKey] !== undefined && record[dateKey] !== null && record[dateKey] !== ''
+      && (typeof record[dateKey] !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(record[dateKey]))) return false;
+  }
   const taxable = Number(record.taxable);
   const gst = Number(record.gst);
   const paid = Number(record.paid);
