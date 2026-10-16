@@ -103,6 +103,21 @@ module.exports = async function handler(req, res) {
     if (JSON.stringify(record).length > 24000) return send(res, 413, { error: 'The entry is too large.' });
     const data = JSON.stringify(record);
     const clientId = typeof body.clientId === 'string' && /^[A-Za-z0-9_-]{8,80}$/.test(body.clientId) ? body.clientId : 'unknown';
+    // Deletion is the one operation that must NOT be an upsert — a stale sync
+    // payload replayed against the DB used to resurrect a deleted entry.
+    if (body.operation === 'delete') {
+      try {
+        await sql`DELETE FROM courierpay_finance_entries WHERE id = ${record.id}`;
+        await sql`INSERT INTO courierpay_activity_events (event, client_id)
+          SELECT jsonb_build_object('type','finance_entry_deleted','category','finance','recordId',${record.id},
+                   'reference',COALESCE(${record.payee},${record.vendor},''),'party',COALESCE(${record.payee},${record.vendor},''),
+                   'amount',0,'transactionDate',${record.date},'summary','Finance entry deleted'), ${clientId}`;
+        return send(res, 200, { saved: true, id: record.id, deleted: true });
+      } catch (error) {
+        console.error('Shared ledger delete failed:', error.message);
+        return send(res, 503, { error: 'Shared ledger is temporarily unavailable. Try again later.' });
+      }
+    }
     try {
       await sql`WITH previous AS MATERIALIZED (
           SELECT record FROM courierpay_finance_entries WHERE id = ${record.id}
