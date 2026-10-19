@@ -37,7 +37,7 @@ function readBody(req) {
 function validRecord(record) {
   if (!record || typeof record !== 'object' || Array.isArray(record)) return false;
   if (typeof record.id !== 'string' || record.id.length < 8 || record.id.length > 100) return false;
-  if (!['purchase', 'salary', 'utilities'].includes(record.kind)) return false;
+  if (!['purchase', 'salary', 'utilities', 'vehicle'].includes(record.kind)) return false;
   if (typeof record.date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(record.date)) return false;
   // Optional date fields must be valid ISO dates too — a stray extra digit (e.g.
   // "20226-10-11") used to pass validation and surface as a broken date in reports.
@@ -52,9 +52,12 @@ function validRecord(record) {
   if (!['none', 'cgst_sgst', 'igst'].includes(record.gstMode) || typeof record.itcEligible !== 'boolean' || typeof record.voided !== 'boolean') return false;
   if (gst > 0 && record.gstMode === 'none') return false;
   if (record.kind === 'purchase' && (!['Blue Dart', 'Delhivery', 'Shree Maruti Couriers', 'Ekart'].includes(record.vendor) || typeof record.reference !== 'string' || !record.reference.trim())) return false;
-  if ((record.kind === 'salary' || record.kind === 'utilities') && (typeof record.payee !== 'string' || !record.payee.trim())) return false;
+  if ((record.kind === 'salary' || record.kind === 'utilities' || record.kind === 'vehicle') && (typeof record.payee !== 'string' || !record.payee.trim())) return false;
   if (record.whatsappPhone !== undefined && (typeof record.whatsappPhone !== 'string' || record.whatsappPhone.length > 24)) return false;
-  const allowed = ['id','kind','vendor','payee','whatsappPhone','reference','date','dueDate','taxable','gst','gstMode','itcEligible','paid','paidDate','notes','voided','createdAt','updatedAt'];
+  // Subcategory — optional, must be a non-empty string when present
+  if (record.subcategory !== undefined && record.subcategory !== null && record.subcategory !== ''
+      && (typeof record.subcategory !== 'string' || record.subcategory.length > 60)) return false;
+  const allowed = ['id','kind','vendor','payee','whatsappPhone','reference','date','dueDate','taxable','gst','gstMode','itcEligible','paid','paidDate','notes','voided','subcategory','createdAt','updatedAt'];
   return Object.keys(record).every(key => allowed.includes(key));
 }
 
