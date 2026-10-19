@@ -3847,7 +3847,7 @@ function chatDataSnapshot() {
 function chatFinanceSnapshot() {
   return (Array.isArray(financeEntries)?financeEntries:[]).map(function(row){
     return {
-      kind:row.kind,provider:row.vendor||'',payee:row.payee||'',reference:row.reference||'',
+      kind:row.kind,subcategory:row.subcategory||'',provider:row.vendor||'',payee:row.payee||'',reference:row.reference||'',
       date:row.date||'',dueDate:row.dueDate||'',taxable:Number(row.taxable)||0,gst:Number(row.gst)||0,
       gstMode:row.gstMode||'none',itcEligible:!!row.itcEligible,total:ledgerTotal(row),
       paid:Number(row.paid)||0,paidDate:row.paidDate||'',balance:ledgerBalance(row),

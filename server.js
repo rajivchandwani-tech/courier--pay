@@ -85,7 +85,7 @@ function cleanFinanceEntries(input) {
   if (!Array.isArray(input)) return [];
   const finite = value => { const n = Number(value); return Number.isFinite(n) ? n : 0; };
   return input.slice(0, 10000).map(row => {
-    if (!row || !['purchase', 'salary', 'utilities'].includes(row.kind)) return null;
+    if (!row || !['purchase', 'salary', 'utilities', 'vehicle'].includes(row.kind)) return null;
     const taxable = finite(row.taxable), gst = finite(row.gst), paid = finite(row.paid);
     return {
       kind: row.kind,
@@ -102,7 +102,8 @@ function cleanFinanceEntries(input) {
       paidDate: cleanText(row.paidDate, 10),
       balance: finite(row.balance),
       notes: cleanText(row.notes, 500),
-      voided: !!row.voided
+      voided: !!row.voided,
+      subcategory: cleanText(row.subcategory, 60)
     };
   }).filter(row => row && /^\d{4}-\d{2}-\d{2}$/.test(row.date));
 }
@@ -113,7 +114,7 @@ function buildAssistantAnalysis(invoices, entries, calendar) {
     ? calendar.currentFY : null;
   const monthMap = new Map();
   const getMonth = month => {
-    if (!monthMap.has(month)) monthMap.set(month, { month, netSales: 0, invoiceCount: 0, outputGST: 0, salesOutstanding: 0, courierCosts: 0, salary: 0, utilities: 0, expenseCounts: { purchase: 0, salary: 0, utilities: 0 }, inputAndExpenseGST: 0, unpaidExpenseBalance: 0 });
+    if (!monthMap.has(month)) monthMap.set(month, { month, netSales: 0, invoiceCount: 0, outputGST: 0, salesOutstanding: 0, courierCosts: 0, salary: 0, utilities: 0, vehicle: 0, expenseCounts: { purchase: 0, salary: 0, utilities: 0, vehicle: 0 }, inputAndExpenseGST: 0, unpaidExpenseBalance: 0 });
     return monthMap.get(month);
   };
   const totalAmount = invoice => (Number(invoice.amount) || 0) + (Number(invoice.gst) || 0);
@@ -134,6 +135,7 @@ function buildAssistantAnalysis(invoices, entries, calendar) {
     if (entry.kind === 'purchase') report.courierCosts += cost;
     if (entry.kind === 'salary') report.salary += cost;
     if (entry.kind === 'utilities') report.utilities += cost;
+    if (entry.kind === 'vehicle') report.vehicle += cost;
     report.expenseCounts[entry.kind]++;
     report.inputAndExpenseGST += entry.gst;
     report.unpaidExpenseBalance += entry.balance;
