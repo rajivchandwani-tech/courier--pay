@@ -263,8 +263,11 @@ async function chat(req, res) {
     const useOpenAI = provider === 'OpenAI';
     const useOpenRouter = provider === 'OpenRouter';
     const useGroq = provider === 'Groq';
+    // Gemini models are retired frequently; `gemini-2.0-flash` and
+    // `gemini-1.5-flash` now return 404, which used to 502 the whole chat.
+    // gemini-3.8-flash is the verified live one.
     const model = isGemini
-      ? (process.env.GEMINI_MODEL || 'gemini-2.0-flash')
+      ? (process.env.GEMINI_MODEL || 'gemini-3.8-flash')
       : useOpenAI
         ? (process.env.OPENAI_MODEL || 'gpt-4o-mini')
         : useOpenRouter
@@ -274,7 +277,7 @@ async function chat(req, res) {
     // Only models that were verified to answer on the free tier. Retired models
     // (gemma-3-27b, qwen3-30b, llama-3.3-70b, deepseek-chat-v3.1) return 404.
     const models = isGemini
-      ? [...new Set([model, process.env.GEMINI_FALLBACK_MODEL || 'gemini-1.5-flash', 'gemini-2.0-flash'])]
+      ? [...new Set([model, process.env.GEMINI_FALLBACK_MODEL || 'gemini-3.8-flash', 'gemini-3.1-flash-lite'])]
       : useOpenRouter
         ? [...new Set([
             model,

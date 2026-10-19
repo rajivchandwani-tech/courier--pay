@@ -14,6 +14,9 @@
     },
     "api/activity.js": {
       "maxDuration": 60
+    },
+    "api/webhook.js": {
+      "maxDuration": 30
     }
   }
 }
