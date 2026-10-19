@@ -230,10 +230,12 @@ function buildAssistantAnalysis(invoices, entries, calendar) {
 // Free-tier keys exhaust their quota fast. Rotate across every OpenRouter key
 // that is present, and fall through to the next model when one is rate-limited.
 const OPENROUTER_KEY_NAMES = ['OPENROUTER_API_KEY', 'OPENROUTER_BACKUP_API_KEY', 'OPENROUTER_THIRD_API_KEY', 'OPENROUTER_FOURTH_API_KEY'];
+const GEMINI_KEY_NAMES = ['GEMINI_API_KEY', 'GEMINI_BACKUP_API_KEY', 'GEMINI_THIRD_API_KEY'];
 const PLACEHOLDER_VALUES = new Set(['your_gemini_api_key_here', 'your_openrouter_api_key_here', 'your_openai_api_key_here', 'your_groq_api_key_here', '']);
 
 function providerKeys() {
-  if (process.env.GEMINI_API_KEY) return { provider: 'Gemini', keys: [process.env.GEMINI_API_KEY] };
+  const geminiKeys = GEMINI_KEY_NAMES.map(name => process.env[name]).filter(k => k && !PLACEHOLDER_VALUES.has(k));
+  if (geminiKeys.length) return { provider: 'Gemini', keys: geminiKeys };
   const keys = OPENROUTER_KEY_NAMES.map(name => process.env[name]).filter(k => k && !PLACEHOLDER_VALUES.has(k));
   if (keys.length) return { provider: 'OpenRouter', keys };
   if (process.env.OPENAI_API_KEY && !PLACEHOLDER_VALUES.has(process.env.OPENAI_API_KEY)) return { provider: 'OpenAI', keys: [process.env.OPENAI_API_KEY] };
