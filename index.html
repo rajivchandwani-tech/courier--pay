@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>CourierPay v5 — FY 2025-26</title>
+<title>Travel Point OS — FY 2025-26</title>
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=DM+Sans:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;600&family=Noto+Sans:wght@400;700&display=swap" rel="stylesheet">
 <style>
 :root{
@@ -215,9 +215,9 @@ td{padding:12px 16px;font-size:13px;vertical-align:middle;}
 
 <!-- LOADING -->
 <div class="loading-screen" id="loadingScreen">
-  <div class="loading-logo">&#128666; COURIERPAY</div>
+  <div class="loading-logo">&#128666; TRAVEL POINT OS</div>
   <div class="loading-bar-wrap"><div class="loading-bar"></div></div>
-  <div class="loading-txt" id="loadingTxt">Starting up — TRAVEL POINT...</div>
+  <div class="loading-txt" id="loadingTxt">Starting up — Travel Point OS...</div>
 </div>
 
 <div class="scan-line"></div>
@@ -359,7 +359,7 @@ td{padding:12px 16px;font-size:13px;vertical-align:middle;}
     <div class="mbody">
       <div class="od-box">
         <div class="od-title">&#128193; Save to Your OneDrive Finance Folder</div>
-        <div style="font-size:13px;color:var(--muted);">Invoices, customer details, settings, purchases and expenses sync through CourierPay for authorized users. Use CSV export and OneDrive as an extra backup.</div>
+        <div style="font-size:13px;color:var(--muted);">Invoices, customer details, settings, purchases and expenses sync through Travel Point OS for authorized users. Use CSV export and OneDrive as an extra backup.</div>
       </div>
 
       <div style="margin-bottom:18px;">
@@ -374,7 +374,7 @@ td{padding:12px 16px;font-size:13px;vertical-align:middle;}
       </div>
 
       <div class="nav-divider" style="margin:16px 0;"></div>
-      <div class="warn-box" style="margin-top:16px;">&#128161; Open CourierPay on each browser or device while online so its existing device-only records can join the shared data. If the same invoice differs between devices, CourierPay keeps both copies and flags the repeated invoice number for review.</div>
+      <div class="warn-box" style="margin-top:16px;">&#128161; Open Travel Point OS on each browser or device while online so its existing device-only records can join the shared data. If the same invoice differs between devices, Travel Point OS keeps both copies and flags the repeated invoice number for review.</div>
     </div>
   </div>
 </div>
@@ -384,7 +384,7 @@ td{padding:12px 16px;font-size:13px;vertical-align:middle;}
   <div class="modal" style="width:720px;">
     <div class="mhd"><div class="mtitle" style="color:var(--warn);">&#128190; DATA RECOVERY</div><button class="mclose" onclick="closeM('recoverModal')">&#215;</button></div>
     <div class="mbody">
-      <div class="warn-box">&#128270; This scans all localStorage keys from every previous CourierPay version in this browser and recovers your invoices.</div>
+      <div class="warn-box">&#128270; This scans all localStorage keys from every previous Travel Point OS version in this browser and recovers your invoices.</div>
       <div style="display:flex;gap:10px;margin-bottom:18px;flex-wrap:wrap;">
         <button class="btn btn-pri" onclick="scanOldData()">&#128270; Scan This Browser</button>
         <label class="btn btn-ghost" style="cursor:pointer;">&#128229; Import from CSV <input type="file" id="csvImport" accept=".csv" onchange="importCSV(event)" style="display:none;"></label>
@@ -458,8 +458,8 @@ td{padding:12px 16px;font-size:13px;vertical-align:middle;}
 <div class="shell">
   <nav class="sidebar">
     <div class="logo">
-      <div class="logo-name">&#128666; SWIFT</div>
-      <div class="logo-sub">Courier Billing OS</div>
+    <div class="logo-name">&#128666; TRAVEL POINT</div>
+    <div class="logo-sub">TRAVEL POINT OS</div>
       <div class="fy-badge">FY 2025-26</div>
     </div>
     <div class="nav-section">Main</div>
@@ -482,7 +482,7 @@ td{padding:12px 16px;font-size:13px;vertical-align:middle;}
     <div class="nav-item" onclick="showTab('settings')"><span class="nav-icon">&#9881;&#65039;</span> Settings</div>
     <div class="nav-item" onclick="openM('recoverModal')"><span class="nav-icon">&#128190;</span> Recover Data</div>
     <div class="sidebar-footer">
-      <div class="sync-row"><div class="sync-dot" id="sdot" style="background:var(--warn);"></div><span id="stxt" title="Connecting to shared CourierPay storage">Connecting to shared data…</span></div>
+      <div class="sync-row"><div class="sync-dot" id="sdot" style="background:var(--warn);"></div><span id="stxt" title="Connecting to shared Travel Point storage">Connecting to shared data…</span></div>
       <div style="margin-top:2px;">v5.0 Final · FY 2025-26</div>
     </div>
   </nav>
@@ -694,7 +694,7 @@ td{padding:12px 16px;font-size:13px;vertical-align:middle;}
       <div class="tab-view" id="tab-chatbot">
         <div class="panel">
           <div class="panel-hd"><div><div class="panel-title">&#129302; FINANCE ASSISTANT</div><div style="font-size:11px;color:var(--muted);margin-top:5px;">Ask about sales, purchases, payments, FY reports, salary, utilities, or monthly P&amp;L.</div></div><button class="btn btn-ghost btn-sm" onclick="clearChat()">Clear chat</button></div>
-          <div class="info-box" style="margin:14px 16px 0;">To answer, CourierPay sends invoice and finance-ledger fields (including payee names, dates, amounts, GST, payment status, and notes) to the configured AI provider. Customer phone/email and bank settings are excluded. Do not enter passwords, API keys, or unrelated personal details.</div>
+          <div class="info-box" style="margin:14px 16px 0;">To answer, Travel Point OS sends invoice and finance-ledger fields (including payee names, dates, amounts, GST, payment status, and notes) to the configured AI provider. Customer phone/email and bank settings are excluded. Do not enter passwords, API keys, or unrelated personal details.</div>
           <div class="chat-log" id="chatLog" aria-live="polite"><div class="chat-message assistant">Hi! I can find recent sales, courier purchases, and recorded payments, and answer questions about FY reports, salary, utilities, and monthly P&amp;L. What would you like to know?</div></div>
           <div class="chat-compose">
             <textarea id="chatContext" rows="2" placeholder="Optional descriptive context for this question (for example, what a service or expense category means)"></textarea>
@@ -815,7 +815,7 @@ function updateFYLabels() {
   var tb = document.getElementById('topBadge');
   if (tb) tb.innerHTML = '&#9989; ' + lbl;
   // Page title
-  document.title = 'CourierPay v5 \u2014 ' + lbl;
+  document.title = 'Travel Point OS \\u2014 ' + lbl;
   // Loading text
   var lt = document.getElementById('loadingTxt');
   if (lt) lt.textContent = 'Loading ' + lbl + ' data...';
@@ -1030,7 +1030,7 @@ function setLedgerCloudStatus(message, connected) {
 }
 async function ledgerApi(method, payload) {
   var response=await fetch('/api/ledger',{method:method,headers:{'Content-Type':'application/json'},cache:'no-store',body:payload?JSON.stringify(payload):undefined});
-  if(!(response.headers.get('content-type')||'').toLowerCase().includes('application/json'))throw new Error('Sign in to the protected CourierPay site to use shared finance records.');
+  if(!(response.headers.get('content-type')||'').toLowerCase().includes('application/json'))throw new Error('Sign in to the protected Travel Point OS site to use shared finance records.');
   var data=await response.json().catch(function(){return {};});
   if(!response.ok){var error=new Error(data.error||('Ledger request failed ('+response.status+').'));error.status=response.status;throw error;}
   return data;
@@ -1043,7 +1043,7 @@ function setAppCloudStatus(message,connected) {
 }
 async function fetchActivityPage(query) {
   var response=await fetch('/api/activity?'+query,{method:'GET',cache:'no-store'});
-  if(!(response.headers.get('content-type')||'').toLowerCase().includes('application/json'))throw new Error('Sign in to the protected CourierPay site to view shared activity.');
+  if(!(response.headers.get('content-type')||'').toLowerCase().includes('application/json'))throw new Error('Sign in to the protected Travel Point OS site to view shared activity.');
   var data=await response.json().catch(function(){return {};});
   if(!response.ok)throw new Error(data.error||('Activity request failed ('+response.status+').'));
   return data;
@@ -1125,7 +1125,7 @@ async function loadOlderActivity() {
 async function appStateApi(method,payload) {
   var response=await fetch('/api/app-state',{method:method,headers:{'Content-Type':'application/json'},cache:'no-store',body:payload?JSON.stringify(payload):undefined});
   var contentType=(response.headers.get('content-type')||'').toLowerCase();
-  if(!contentType.includes('application/json'))throw new Error('Sign in to the protected CourierPay site to use shared data.');
+  if(!contentType.includes('application/json'))throw new Error('Sign in to the protected Travel Point OS site to use shared data.');
   var data=await response.json().catch(function(){return {};});
   if(!response.ok){var error=new Error(data.error||('Shared data request failed ('+response.status+').'));error.status=response.status;error.data=data;throw error;}
   return data;
@@ -1577,7 +1577,7 @@ function exportLedgerCSV(mode) {
     return [row.kind,row.vendor||row.kind,row.payee,row.reference,row.date,row.dueDate,row.taxable,row.gst,row.gstMode,row.itcEligible?'Yes':'No',ledgerTotal(row),row.paid,ledgerBalance(row),row.notes].map(csvCell).join(',');
   }));
   var blob=new Blob(['\\uFEFF'+lines.join('\\r\\n')],{type:'text/csv;charset=utf-8'});
-  var url=URL.createObjectURL(blob);var a=document.createElement('a');a.href=url;a.download='courierpay_'+(mode==='purchase'?'purchases':mode==='expense'?'expenses':'ledger_'+month)+'_'+today()+'.csv';a.click();setTimeout(function(){URL.revokeObjectURL(url);},1000);
+  var url=URL.createObjectURL(blob);var a=document.createElement('a');a.href=url;a.download='travelpointos_'+(mode==='purchase'?'purchases':mode==='expense'?'expenses':'ledger_'+month)+'_'+today()+'.csv';a.click();setTimeout(function(){URL.revokeObjectURL(url);},1000);
 }
 
 // ══════════════════════════════════════════════════
@@ -2141,7 +2141,7 @@ function exportForOneDrive(mode) {
       +(i.due||'')+'","'+(i.paiddate||'')+'","'+getStatus(i)+'","'+(i.notes||'')+'"';
   });
   var csv = [hdr].concat(rows).join('\n');
-  var fn  = (settings.company||'CourierPay').replace(/\s+/g,'_')+'_'+label+'_'+FY_LABEL.replace(/ /g,'')+'_'+today()+'.csv';
+  var fn  = (settings.company||'Travel Point OS').replace(/\s+/g,'_')+'_'+label+'_'+FY_LABEL.replace(/ /g,'')+'_'+today()+'.csv';
   var a   = document.createElement('a');
   a.href  = 'data:text/csv;charset=utf-8,\uFEFF'+encodeURIComponent(csv);
   a.download = fn;
@@ -3765,7 +3765,7 @@ exportForOneDrive = function(mode) {
 
 function exportCSVData(csv, label, rawCsv) {
   if (rawCsv) csv = rawCsv; // already built
-  var fn = (settings.company||'CourierPay').replace(/\s+/g,'_')+'_'+label+'_'+FY_LABEL.replace(/\s/g,'')+'_'+today()+'.csv';
+  var fn = (settings.company||'Travel Point OS').replace(/\s+/g,'_')+'_'+label+'_'+FY_LABEL.replace(/\s/g,'')+'_'+today()+'.csv';
   var a  = document.createElement('a');
   a.href = 'data:text/csv;charset=utf-8,\uFEFF'+encodeURIComponent(typeof csv==='string'?csv:'');
   a.download = fn;
@@ -3783,7 +3783,7 @@ function downloadSampleCSV() {
   var blob = new Blob(['\uFEFF',csv],{type:'text/csv;charset=utf-8'});
   var url = URL.createObjectURL(blob);
   var a = document.createElement('a');
-  a.href=url; a.download='courierpay-invoice-import-sample.csv'; a.click();
+  a.href=url; a.download='travelpointos-invoice-import-sample.csv'; a.click();
   setTimeout(function(){URL.revokeObjectURL(url);},1000);
   toast('s','Sample CSV Downloaded','Use the sample columns when preparing your invoice import file.');
 }
@@ -3890,7 +3890,7 @@ async function sendChat() {
     // the user sees the real cause instead of a bare "Unexpected token" error.
     var contentType = (response.headers.get('content-type') || '').toLowerCase();
     if (!contentType.includes('application/json')) {
-      throw new Error('The CourierPay site is showing a sign-in page instead of answering. Sign in to the protected deployment, or turn off Vercel Deployment Protection, then try again.');
+      throw new Error('The Travel Point OS site is showing a sign-in page instead of answering. Sign in to the protected deployment, or turn off Vercel Deployment Protection, then try again.');
     }
     var payload;
     try { payload = await response.json(); }
