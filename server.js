@@ -390,10 +390,48 @@ async function chat(req, res) {
   }
 }
 
+// ── App Password Gate ──────────────────────────────────────────────────────
+// Shared password for Rajiv, Riddhima, Shalu, and Rasha.
+// Password is stored in APP_PASSWORD env var (Vercel), never in code.
+const APP_PASSWORD = process.env.APP_PASSWORD || '';
+const AUTH_TOKEN = process.env.AUTH_TOKEN || 'tp_' + Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2);
+
+function isAuthenticated(req) {
+  const auth = req.headers['x-app-token'] || req.headers['authorization'] || '';
+  return auth === AUTH_TOKEN || auth === 'Bearer ' + AUTH_TOKEN;
+}
+
+function authHandler(req, res) {
+  if (req.method === 'OPTIONS') {
+    res.setHeader('Allow', 'POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+    res.setHeader('Access-Control-Max-Age', '86400');
+    return send(res, 204, '');
+  }
+  if (req.method !== 'POST') {
+    res.setHeader('Allow', 'POST, OPTIONS');
+    return send(res, 405, { error: 'Method not allowed.' });
+  }
+  let body;
+  try { body = readJson(req); }
+  catch (error) { return send(res, error.status || 400, { error: error.message || 'Could not read request.' }); }
+  const password = body.password || '';
+  if (!APP_PASSWORD) return send(res, 503, { error: 'App password is not configured.' });
+  if (password !== APP_PASSWORD) return send(res, 401, { error: 'Invalid password.' });
+  return send(res, 200, { token: AUTH_TOKEN });
+}
+
 const mime = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.txt': 'text/plain; charset=utf-8' };
 const server = http.createServer(async (req, res) => {
   try {
     const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+    // Auth endpoint — no token needed
+    if (url.pathname === '/api/auth') return authHandler(req, res);
+    // All other API routes require authentication
+    if (url.pathname.startsWith('/api/') && !isAuthenticated(req)) {
+      return send(res, 401, { error: 'Authentication required.' });
+    }
     if (req.method === 'POST' && url.pathname === '/api/chat') return await chat(req, res);
     if (url.pathname === '/api/app-state') return await appStateHandler(req, res);
     if (url.pathname === '/api/ledger') return await ledgerHandler(req, res);

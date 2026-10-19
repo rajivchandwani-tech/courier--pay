@@ -220,6 +220,16 @@ td{padding:12px 16px;font-size:13px;vertical-align:middle;}
   <div class="loading-txt" id="loadingTxt">Starting up — Travel Point OS...</div>
 </div>
 
+<!-- ══ LOGIN SCREEN ══ -->
+<div class="loading-screen" id="loginScreen" style="display:none;">
+  <div class="loading-logo">&#128666; TRAVEL POINT OS</div>
+  <div style="margin-top:24px;width:280px;">
+    <input type="password" id="loginPassword" placeholder="Enter password" style="width:100%;padding:12px 16px;border:1px solid var(--border);border-radius:8px;background:rgba(0,0,0,.3);color:var(--text);font-size:14px;text-align:center;" onkeydown="if(event.key==='Enter')doLogin()">
+    <button class="btn btn-pri" style="width:100%;margin-top:12px;" onclick="doLogin()">Login</button>
+    <div id="loginError" style="color:var(--danger);font-size:12px;text-align:center;margin-top:8px;display:none;">Invalid password</div>
+  </div>
+</div>
+
 <div class="scan-line"></div>
 <div class="toastwrap" id="toastWrap"></div>
 
@@ -4028,3 +4038,111 @@ showTab = function(name) {
 </script>
 </body>
 </html>
+<script>
+// ── APP PASSWORD GATE ──────────────────────────────────────────────────────
+const TP_TOKEN_KEY = 'tp_auth_token';
+
+function getStoredToken() {
+  try { return localStorage.getItem(TP_TOKEN_KEY) || ''; } catch(e) { return ''; }
+}
+function setStoredToken(token) {
+  try { if (token) localStorage.setItem(TP_TOKEN_KEY, token); else localStorage.removeItem(TP_TOKEN_KEY); } catch(e) {}
+}
+function showLogin() {
+  var ls = document.getElementById('loadingScreen');
+  var lg = document.getElementById('loginScreen');
+  if (ls) ls.style.display = 'none';
+  if (lg) lg.style.display = 'flex';
+  var pwd = document.getElementById('loginPassword');
+  if (pwd) pwd.focus();
+}
+function showApp() {
+  var ls = document.getElementById('loadingScreen');
+  var lg = document.getElementById('loginScreen');
+  if (lg) lg.style.display = 'none';
+  if (ls) ls.style.display = 'flex';
+}
+async function doLogin() {
+  var pwd = document.getElementById('loginPassword');
+  var err = document.getElementById('loginError');
+  var btn = document.querySelector('#loginScreen .btn-pri');
+  if (err) err.style.display = 'none';
+  if (pwd && !pwd.value.trim()) { pwd.focus(); return; }
+  if (btn) { btn.disabled = true; btn.textContent = 'Logging in…'; }
+  try {
+    var res = await fetch('/api/auth', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: pwd ? pwd.value.trim() : '' })
+    });
+    if (!res.ok) throw new Error('Invalid password');
+    var data = await res.json();
+    setStoredToken(data.token || '');
+    showApp();
+    if (pwd) pwd.value = '';
+    toast('s', 'Welcome', 'Login successful.');
+  } catch(e) {
+    if (err) { err.style.display = 'block'; err.textContent = e.message || 'Login failed'; }
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Login'; }
+  }
+}
+function tpApiFetch(url, options) {
+  options = options || {};
+  options.headers = options.headers || {};
+  var token = getStoredToken();
+  if (token) options.headers['X-App-Token'] = token;
+  return fetch(url, options).then(function(res) {
+    if (res.status === 401) {
+      setStoredToken('');
+      showLogin();
+      throw new Error('Session expired. Please login again.');
+    }
+    return res;
+  });
+}
+// Patch existing API calls to include token
+var _origAppStateApi = appStateApi;
+appStateApi = function(method, payload) {
+  return tpApiFetch('/api/app-state', {
+    method: method || 'GET',
+    headers: { 'Content-Type': 'application/json' },
+    cache: 'no-store',
+    body: payload ? JSON.stringify(payload) : undefined
+  }).then(function(res) {
+    if (!(res.headers.get('content-type') || '').toLowerCase().includes('application/json'))
+      throw new Error('Sign in to the protected Travel Point OS site to use shared data.');
+    return res.json().catch(function() { return {}; }).then(function(data) {
+      if (!res.ok) { var error = new Error(data.error || ('Shared data request failed (' + res.status + ').')); error.status = res.status; error.data = data; throw error; }
+      return data;
+    });
+  });
+};
+var _origLedgerApi = ledgerApi;
+ledgerApi = function(method, payload) {
+  return tpApiFetch('/api/ledger', {
+    method: method || 'GET',
+    headers: { 'Content-Type': 'application/json' },
+    cache: 'no-store',
+    body: payload ? JSON.stringify(payload) : undefined
+  }).then(function(res) {
+    if (!(res.headers.get('content-type') || '').toLowerCase().includes('application/json'))
+      throw new Error('Sign in to the protected Travel Point OS site to use shared finance records.');
+    return res.json().catch(function() { return {}; }).then(function(data) {
+      if (!res.ok) { var error = new Error(data.error || ('Ledger request failed (' + res.status + ').')); error.status = res.status; throw error; }
+      return data;
+    });
+  });
+};
+// On load: if no token, show login
+window.addEventListener('DOMContentLoaded', function() {
+  if (!getStoredToken()) {
+    showLogin();
+  } else {
+    // Verify token by calling a lightweight endpoint
+    tpApiFetch('/api/clients').then(function(res) {
+      if (res.status === 401) { setStoredToken(''); showLogin(); }
+    }).catch(function() {});
+  }
+});
+</script>
