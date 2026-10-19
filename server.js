@@ -11,6 +11,7 @@ const MAX_BODY = 4 * 1024 * 1024;
 const ledgerHandler = require('./api/ledger');
 const appStateHandler = require('./api/app-state');
 const activityHandler = require('./api/activity');
+const clientsHandler = require('./api/clients');
 
 function loadEnv() {
   const file = path.join(ROOT, '.env');
@@ -395,6 +396,7 @@ const server = http.createServer(async (req, res) => {
     if (url.pathname === '/api/app-state') return await appStateHandler(req, res);
     if (url.pathname === '/api/ledger') return await ledgerHandler(req, res);
     if (url.pathname === '/api/activity') return await activityHandler(req, res);
+    if (url.pathname === '/api/clients') return await clientsHandler(req, res);
     if (req.method !== 'GET' && req.method !== 'HEAD') return send(res, 405, { error: 'Method not allowed.' });
     const pathname = decodeURIComponent(url.pathname);
     const requested = pathname === '/' ? 'index.html' : pathname.replace(/^\/+/, '');

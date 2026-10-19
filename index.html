@@ -223,6 +223,32 @@ td{padding:12px 16px;font-size:13px;vertical-align:middle;}
 <div class="scan-line"></div>
 <div class="toastwrap" id="toastWrap"></div>
 
+<!-- ══ CLIENT MODAL ══ -->
+<div class="overlay" id="clientModal">
+  <div class="modal">
+    <div class="mhd"><div class="mtitle">&#128101; NEW CLIENT</div><button class="mclose" onclick="closeM('clientModal')">&#215;</button></div>
+    <div class="mbody">
+      <div class="fgrid">
+        <div class="fg full"><label>Client Name *</label><input id="c_name" placeholder="Client or company name"></div>
+        <div class="fg"><label>Phone</label><input id="c_phone" placeholder="+91 98000 00000"></div>
+        <div class="fg"><label>Email</label><input id="c_email" type="email" placeholder="client@example.com"></div>
+        <div class="fg"><label>Customer Type</label>
+          <select id="c_type"><option value="credit">Credit</option><option value="cash">Cash</option></select>
+        </div>
+        <div class="fg"><label>Billing Period</label>
+          <select id="c_billing"><option value="none">None</option><option value="weekly">Weekly</option><option value="monthly">Monthly</option><option value="custom">Custom</option></select>
+        </div>
+        <div class="fg"><label>Invoice Prefix (optional)</label><input id="c_prefix" placeholder="e.g. CC/"></div>
+        <div class="fg full"><label>Notes</label><input id="c_notes" placeholder="Optional notes"></div>
+      </div>
+      <div class="factions">
+        <button class="btn btn-ghost" onclick="closeM('clientModal')">Cancel</button>
+        <button class="btn btn-pri" onclick="saveClient()">&#128190; Save Client</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- ══ NEW INVOICE MODAL ══ -->
 <div class="overlay" id="newModal">
   <div class="modal">
@@ -447,6 +473,7 @@ td{padding:12px 16px;font-size:13px;vertical-align:middle;}
     <div class="nav-section">Finance</div>
     <div class="nav-item" onclick="showTab('reports')"><span class="nav-icon">&#128202;</span> FY Reports</div>
     <div class="nav-item" onclick="showTab('purchases')"><span class="nav-icon">&#128230;</span> Purchase Index</div>
+    <div class="nav-item" onclick="showTab('clients')"><span class="nav-icon">&#128101;</span> Clients</div>
     <div class="nav-item" onclick="showTab('expenses')"><span class="nav-icon">&#128181;</span> Salary &amp; Utilities</div>
     <div class="nav-item" onclick="showTab('pnl')"><span class="nav-icon">&#128200;</span> Monthly P&amp;L</div>
     <div class="nav-item" onclick="openM('odModal')"><span class="nav-icon">&#9729;&#65039;</span> OneDrive Backup</div>
@@ -601,6 +628,19 @@ td{padding:12px 16px;font-size:13px;vertical-align:middle;}
       </div>
 
       <!-- ══ SALARY AND UTILITIES ══ -->
+      <div class="tab-view" id="tab-clients">
+        <div class="panel-hd">
+          <div class="panel-title">&#128101; CLIENT MASTER</div>
+          <button class="btn btn-pri btn-sm" onclick="openClientModal()">&#10003; New Client</button>
+        </div>
+        <div style="overflow-x:auto">
+          <table>
+            <thead><tr><th>Name</th><th>Phone</th><th>Email</th><th>Type</th><th>Billing</th><th>Prefix</th><th>Actions</th></tr></thead>
+            <tbody id="clientsTbl"></tbody>
+          </table>
+        </div>
+      </div>
+
       <div class="tab-view" id="tab-expenses">
         <div class="ledger-note" id="expenseStorageStatus">Checking shared ledger connection…</div>
         <div class="panel">
@@ -3850,6 +3890,122 @@ async function sendChat() {
     promptEl.focus();
   }
 }
+// ══════════════════════════════════════════════════
+// CLIENTS
+// ══════════════════════════════════════════════════
+let clients = [];
+
+async function loadClients() {
+  try {
+    const res = await fetch('/api/clients');
+    if (!res.ok) throw new Error('Failed to load clients');
+    const data = await res.json();
+    clients = data.clients || [];
+    renderClients();
+  } catch (e) {
+    console.error('loadClients error:', e);
+  }
+}
+
+function renderClients() {
+  const tbl = document.getElementById('clientsTbl');
+  if (!tbl) return;
+  if (!clients.length) {
+    tbl.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:32px;color:var(--muted);">No clients yet. Add your first client.</td></tr>';
+    return;
+  }
+  tbl.innerHTML = clients.map(c => {
+    const typeBadge = c.type === 'cash'
+      ? '<span class="pill ok">Cash</span>'
+      : '<span class="pill info">Credit</span>';
+    const billing = c.billing_period || 'none';
+    return '<tr>'
+      + '<td><strong>' + esc(c.name) + '</strong></td>'
+      + '<td>' + esc(c.phone || '-') + '</td>'
+      + '<td>' + esc(c.email || '-') + '</td>'
+      + '<td>' + typeBadge + '</td>'
+      + '<td>' + esc(billing) + '</td>'
+      + '<td>' + esc(c.prefix || '-') + '</td>'
+      + '<td style="white-space:nowrap;display:flex;gap:5px;">'
+      + '<button class="btn btn-ghost btn-sm" onclick="editClient(\'' + esc(c.id) + '\')">&#9998; Edit</button>'
+      + '<button class="btn btn-ghost btn-sm" onclick="deleteClient(\'' + esc(c.id) + '\')">&#128465; Delete</button>'
+      + '</td></tr>';
+  }).join('');
+}
+
+function openClientModal(client) {
+  document.getElementById('c_name').value = client ? client.name : '';
+  document.getElementById('c_phone').value = client ? (client.phone || '') : '';
+  document.getElementById('c_email').value = client ? (client.email || '') : '';
+  document.getElementById('c_type').value = client ? (client.type || 'credit') : 'credit';
+  document.getElementById('c_billing').value = client ? (client.billing_period || 'none') : 'none';
+  document.getElementById('c_prefix').value = client ? (client.prefix || '') : '';
+  document.getElementById('c_notes').value = client ? (client.notes || '') : '';
+  openM('clientModal');
+}
+
+function editClient(id) {
+  const c = clients.find(x => x.id === id);
+  if (c) openClientModal(c);
+}
+
+async function saveClient() {
+  const name = document.getElementById('c_name').value.trim();
+  if (!name) { toast('w', 'Name required', 'Enter a client name.'); return; }
+  const client = {
+    id: 'client_' + Date.now().toString(36),
+    name: name,
+    phone: document.getElementById('c_phone').value.trim(),
+    email: document.getElementById('c_email').value.trim(),
+    type: document.getElementById('c_type').value,
+    billing_period: document.getElementById('c_billing').value,
+    prefix: document.getElementById('c_prefix').value.trim(),
+    notes: document.getElementById('c_notes').value.trim()
+  };
+  try {
+    const res = await fetch('/api/clients', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(client)
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Failed to save client');
+    }
+    closeM('clientModal');
+    toast('s', 'Client saved', name + ' added to client master.');
+    await loadClients();
+  } catch (e) {
+    toast('w', 'Save failed', e.message);
+  }
+}
+
+async function deleteClient(id) {
+  if (!confirm('Delete this client? Invoices will not be deleted.')) return;
+  try {
+    const res = await fetch('/api/clients', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id })
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Failed to delete client');
+    }
+    toast('s', 'Client deleted', 'Client removed from master.');
+    await loadClients();
+  } catch (e) {
+    toast('w', 'Delete failed', e.message);
+  }
+}
+
+// Load clients when tab is shown
+const origShowTab = showTab;
+showTab = function(name) {
+  origShowTab(name);
+  if (name === 'clients') loadClients();
+};
+
 </script>
 </body>
 </html>

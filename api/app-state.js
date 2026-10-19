@@ -49,6 +49,21 @@ function validState(state) {
     ids.add(String(invoice.id));
     if (typeof invoice.num !== 'string' || invoice.num.length > 160 || typeof invoice.client !== 'string' || invoice.client.length > 240) return false;
     if (![Number(invoice.amount), Number(invoice.gst || 0)].every(Number.isFinite) || Number(invoice.amount) < 0 || Number(invoice.gst || 0) < 0) return false;
+    // Cash/Credit customer type — default 'credit' for backward compatibility
+    if (invoice.customer_type !== undefined && !['cash', 'credit'].includes(invoice.customer_type)) return false;
+    // paid_amount must be a non-negative number when present
+    if (invoice.paid_amount !== undefined && (!Number.isFinite(Number(invoice.paid_amount)) || Number(invoice.paid_amount) < 0)) return false;
+    // part_payments must be an array of valid payment objects
+    if (invoice.part_payments !== undefined) {
+      if (!Array.isArray(invoice.part_payments)) return false;
+      for (const p of invoice.part_payments) {
+        if (!p || typeof p !== 'object') return false;
+        if (typeof p.date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(p.date)) return false;
+        if (!Number.isFinite(Number(p.amount)) || Number(p.amount) <= 0) return false;
+        if (p.mode !== undefined && typeof p.mode !== 'string') return false;
+        if (p.ref !== undefined && typeof p.ref !== 'string') return false;
+      }
+    }
     if (JSON.stringify(invoice).length > 50000) return false;
   }
   for (const item of state.deleted) {
