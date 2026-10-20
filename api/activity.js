@@ -1,5 +1,7 @@
 'use strict';
 
+const { isAuthenticated } = require('./auth');
+
 function send(res, status, payload) {
   res.statusCode = status;
   if (status === 204 || payload === '') { res.end(); return; }
@@ -15,10 +17,12 @@ module.exports = async function handler(req, res) {
   if (req.method === 'OPTIONS') {
     res.setHeader('Allow', 'GET, OPTIONS');
     res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-App-Token');
     res.setHeader('Access-Control-Max-Age', '86400');
     return send(res, 204, '');
   }
+  // Auth gate — every protected endpoint requires a valid session token
+  if (!isAuthenticated(req)) return send(res, 401, { error: 'Authentication required.' });
   if (req.method !== 'GET') {
     res.setHeader('Allow', 'GET, OPTIONS');
     return send(res, 405, { error: 'Method not allowed.' });

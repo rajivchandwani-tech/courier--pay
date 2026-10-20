@@ -426,12 +426,7 @@ const mime = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=u
 const server = http.createServer(async (req, res) => {
   try {
     const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
-    // Auth endpoint — no token needed
     if (url.pathname === '/api/auth') return authHandler(req, res);
-    // All other API routes require authentication
-    if (url.pathname.startsWith('/api/') && !isAuthenticated(req)) {
-      return send(res, 401, { error: 'Authentication required.' });
-    }
     if (req.method === 'POST' && url.pathname === '/api/chat') return await chat(req, res);
     if (url.pathname === '/api/app-state') return await appStateHandler(req, res);
     if (url.pathname === '/api/ledger') return await ledgerHandler(req, res);
