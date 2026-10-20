@@ -1052,7 +1052,12 @@ function setAppCloudStatus(message,connected) {
   if(label){label.textContent=message;label.title=message;}
 }
 async function fetchActivityPage(query) {
-  var response=await fetch('/api/activity?'+query,{method:'GET',cache:'no-store'});
+  // The app password gate requires X-App-Token on every protected call. This
+  // function was the one API call that never sent it, so /api/activity answered
+  // 401 and the whole activity log looked empty while the data was in the DB.
+  var headers={'X-App-Token':getStoredToken()};
+  var response=await fetch('/api/activity?'+query,{method:'GET',headers:headers,cache:'no-store'});
+  if(response.status===401){setStoredToken('');showLogin();throw new Error('Session expired. Please login again.');}
   if(!(response.headers.get('content-type')||'').toLowerCase().includes('application/json'))throw new Error('Sign in to the protected Travel Point OS site to view shared activity.');
   var data=await response.json().catch(function(){return {};});
   if(!response.ok)throw new Error(data.error||('Activity request failed ('+response.status+').'));
@@ -3926,7 +3931,8 @@ let clients = [];
 
 async function loadClients() {
   try {
-    const res = await fetch('/api/clients');
+    const res = await fetch('/api/clients',{headers:{'X-App-Token':getStoredToken()}});
+    if (res.status===401){setStoredToken('');showLogin();throw new Error('Session expired. Please login again.');}
     if (!res.ok) throw new Error('Failed to load clients');
     const data = await res.json();
     clients = data.clients || [];
@@ -3994,7 +4000,7 @@ async function saveClient() {
   try {
     const res = await fetch('/api/clients', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'X-App-Token': getStoredToken() },
       body: JSON.stringify(client)
     });
     if (!res.ok) {
@@ -4014,7 +4020,7 @@ async function deleteClient(id) {
   try {
     const res = await fetch('/api/clients', {
       method: 'DELETE',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'X-App-Token': getStoredToken() },
       body: JSON.stringify({ id })
     });
     if (!res.ok) {
