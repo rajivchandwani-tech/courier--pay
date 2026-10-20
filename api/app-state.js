@@ -78,14 +78,20 @@ function validState(state) {
   return size <= MAX_BODY - 256;
 }
 
-const ACTIVITY_TYPES = new Set(['invoice_created', 'invoice_updated', 'invoice_deleted', 'invoice_marked_paid', 'payment_recorded', 'settings_updated', 'history_initialized', 'bulk_invoice_change', 'data_changed']);
+const ACTIVITY_TYPES = new Set(['invoice_created', 'invoice_updated', 'invoice_deleted', 'invoice_marked_paid', 'payment_recorded', 'settings_updated', 'history_initialized', 'bulk_invoice_change', 'data_changed', 'finance_entry_created', 'finance_entry_updated', 'finance_entry_deleted', 'finance_entry_voided', 'finance_payment_recorded']);
+// Which categories are allowed to be written through this endpoint. `finance`
+// was missing, so every expense/salary/vehicle activity event that a browser
+// tried to record through /api/app-state was rejected with a 400 and silently
+// lost — while the identical event written directly by ledger.js succeeded,
+// which is why some finance events appear and others do not.
+const ACTIVITY_CATEGORIES = new Set(['sale', 'payment', 'settings', 'system', 'finance']);
 function cleanActivityEvents(input) {
   if (!Array.isArray(input) || input.length > 1000) return null;
   const allowedKeys = new Set(['type', 'category', 'recordId', 'reference', 'party', 'amount', 'transactionDate', 'summary', 'count']);
   const result = [];
   for (const event of input) {
     if (!event || typeof event !== 'object' || Array.isArray(event) || Object.keys(event).some(key => !allowedKeys.has(key))) return null;
-    if (!ACTIVITY_TYPES.has(event.type) || !['sale', 'payment', 'settings', 'system'].includes(event.category)) return null;
+    if (!ACTIVITY_TYPES.has(event.type) || !ACTIVITY_CATEGORIES.has(event.category)) return null;
     if (event.amount !== null && event.amount !== undefined && (!Number.isFinite(Number(event.amount)) || Number(event.amount) < 0)) return null;
     if (event.count !== undefined && (!Number.isSafeInteger(Number(event.count)) || Number(event.count) < 0 || Number(event.count) > 10000)) return null;
     const text = (value, max) => typeof value === 'string' ? value.slice(0, max) : '';
