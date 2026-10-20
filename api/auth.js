@@ -16,8 +16,12 @@
  */
 const crypto = require('node:crypto');
 
+// A token must be verifiable no matter which build instance serves it, so the
+// secret MUST come from the environment. A hardcoded fallback silently produces
+// tokens that other instances reject with a bare 401 (which reads to the user as
+// "the activity log is broken" while the data is sitting in the database).
 const APP_PASSWORD = process.env.APP_PASSWORD || '';
-const SESSION_SECRET = process.env.SESSION_SECRET || 'travel-point-os-session-key';
+const SESSION_SECRET = process.env.SESSION_SECRET || '';
 const TOKEN_TTL_MS = 1000 * 60 * 60 * 24 * 30;   // 30 days
 
 function send(res, status, payload) {
@@ -97,6 +101,7 @@ module.exports = async function handler(req, res) {
 
   const password = body.password || '';
   if (!APP_PASSWORD) return send(res, 503, { error: 'App password is not configured.' });
+  if (!SESSION_SECRET) return send(res, 503, { error: 'Session secret is not configured.' });
   if (password !== APP_PASSWORD) return send(res, 401, { error: 'Invalid password.' });
 
   return send(res, 200, { token: sign({ kind: 'password', exp: Date.now() + TOKEN_TTL_MS }) });
