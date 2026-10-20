@@ -64,7 +64,7 @@ function cleanClient(c) {
   };
 }
 
-module.exports = async function handler(req, res) {
+module.exports = function handler(req, res) {
   if (req.method === 'OPTIONS') {
     res.setHeader('Allow', 'GET, POST, PUT, DELETE, OPTIONS');
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
@@ -72,8 +72,8 @@ module.exports = async function handler(req, res) {
     res.setHeader('Access-Control-Max-Age', '86400');
     return send(res, 204, '');
   }
-  // Auth gate — every protected endpoint requires a valid session token
   if (!isAuthenticated(req)) return send(res, 401, { error: 'Authentication required.' });
+  if (!['GET', 'POST', 'PUT', 'DELETE'].includes(req.method)) {
     res.setHeader('Allow', 'GET, POST, PUT, DELETE, OPTIONS');
     return send(res, 405, { error: 'Method not allowed.' });
   }
@@ -86,10 +86,9 @@ module.exports = async function handler(req, res) {
   }
   if (!process.env.DATABASE_URL) return send(res, 503, { error: 'Shared database is not connected.' });
 
-  try {
-    const { neon } = await import('@neondatabase/serverless');
+  return import('@neondatabase/serverless').then(({ neon }) => {
     const sql = neon(process.env.DATABASE_URL);
-    await sql`CREATE TABLE IF NOT EXISTS courierpay_clients (
+    return sql`CREATE TABLE IF NOT EXISTS courierpay_clients (
       id text PRIMARY KEY,
       name text NOT NULL,
       phone text DEFAULT '',
@@ -100,47 +99,57 @@ module.exports = async function handler(req, res) {
       notes text DEFAULT '',
       created_at timestamptz NOT NULL DEFAULT now(),
       updated_at timestamptz NOT NULL DEFAULT now()
-    )`;
+          )`.then(() => {
+      if (req.method === 'GET') {
+        return sql`SELECT * FROM courierpay_clients ORDER BY name`
+          .then(rows => send(res, 200, { clients: rows }))
+          .catch(error => send(res, 503, { error: 'Client storage is temporarily unavailable. Try again shortly.' }));
+      }
 
-    if (req.method === 'GET') {
-      const rows = await sql`SELECT * FROM courierpay_clients ORDER BY name`;
-      return send(res, 200, { clients: rows });
-    }
+      return readBody(req).then(body => {
+        if (req.method === 'POST') {
+          if (!validClient(body)) return send(res, 400, { error: 'Invalid client data.' });
+          const c = cleanClient(body);
+          return sql`SELECT id FROM courierpay_clients WHERE id = ${c.id}`
+            .then(existing => {
+              if (existing.length) return send(res, 409, { error: 'Client with this ID already exists.' });
+              return sql`INSERT INTO courierpay_clients (id, name, phone, email, type, billing_period, prefix, notes)
+                        VALUES (${c.id}, ${c.name}, ${c.phone}, ${c.email}, ${c.type}, ${c.billing_period}, ${c.prefix}, ${c.notes})`
+                .then(() => send(res, 201, { client: c }));
+            });
+        }
 
-    let body;
-    try { body = await readBody(req); }
-    catch (error) { return send(res, error.status || 400, { error: error.message || 'Could not read request.' }); }
+        if (req.method === 'PUT') {
+          if (!validClient(body)) return send(res, 400, { error: 'Invalid client data.' });
+          const c = cleanClient(body);
+          return sql`UPDATE courierpay_clients
+                    SET name = ${c.name}, phone = ${c.phone}, email = ${c.email},
+                        type = ${c.type}, billing_period = ${c.billing_period},
+                        prefix = ${c.prefix}, notes = ${c.notes}, updated_at = now()
+                    WHERE id = ${c.id} RETURNING *`
+            .then(updated => {
+              if (!updated.length) return send(res, 404, { error: 'Client not found.' });
+              return send(res, 200, { client: updated[0] });
+            });
+        }
 
-    if (req.method === 'POST') {
-      if (!validClient(body)) return send(res, 400, { error: 'Invalid client data.' });
-      const c = cleanClient(body);
-      const existing = await sql`SELECT id FROM courierpay_clients WHERE id = ${c.id}`;
-      if (existing.length) return send(res, 409, { error: 'Client with this ID already exists.' });
-      await sql`INSERT INTO courierpay_clients (id, name, phone, email, type, billing_period, prefix, notes)
-                VALUES (${c.id}, ${c.name}, ${c.phone}, ${c.email}, ${c.type}, ${c.billing_period}, ${c.prefix}, ${c.notes})`;
-      return send(res, 201, { client: c });
-    }
-
-    if (req.method === 'PUT') {
-      if (!validClient(body)) return send(res, 400, { error: 'Invalid client data.' });
-      const c = cleanClient(body);
-      const updated = await sql`UPDATE courierpay_clients
-                SET name = ${c.name}, phone = ${c.phone}, email = ${c.email},
-                    type = ${c.type}, billing_period = ${c.billing_period},
-                    prefix = ${c.prefix}, notes = ${c.notes}, updated_at = now()
-                WHERE id = ${c.id} RETURNING *`;
-      if (!updated.length) return send(res, 404, { error: 'Client not found.' });
-      return send(res, 200, { client: updated[0] });
-    }
-
-    if (req.method === 'DELETE') {
-      if (!body.id || typeof body.id !== 'string') return send(res, 400, { error: 'Client ID is required.' });
-      const deleted = await sql`DELETE FROM courierpay_clients WHERE id = ${body.id} RETURNING id`;
-      if (!deleted.length) return send(res, 404, { error: 'Client not found.' });
-      return send(res, 204, '');
-    }
-  } catch (error) {
+        if (req.method === 'DELETE') {
+          if (!body.id || typeof body.id !== 'string') return send(res, 400, { error: 'Client ID is required.' });
+          return sql`DELETE FROM courierpay_clients WHERE id = ${body.id} RETURNING id`
+            .then(deleted => {
+              if (!deleted.length) return send(res, 404, { error: 'Client not found.' });
+              return send(res, 204, '');
+            });
+        }
+      });
+    })
+    .catch(error => {
+      console.error('Clients request failed:', error.message);
+      return send(res, 503, { error: 'Client storage is temporarily unavailable. Try again shortly.' });
+    });
+  })
+  .catch(error => {
     console.error('Clients request failed:', error.message);
     return send(res, 503, { error: 'Client storage is temporarily unavailable. Try again shortly.' });
-  }
+  });
 };
