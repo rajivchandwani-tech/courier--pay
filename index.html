@@ -726,7 +726,7 @@ td{padding:12px 16px;font-size:13px;vertical-align:middle;}
       <input type="hidden" id="ledgerRecordId">
       <div class="fgrid">
         <div class="fg" id="ledgerCategoryGroup"><label>Expense account</label><select id="ledgerCategory" onchange="updateLedgerPayeeFields()"><option value="salary">Salary</option><option value="utilities">Utilities</option><option value="vehicle">Vehicle</option></select></div>
-        <div class="fg" id="ledgerSubcategoryGroup"><label>Subcategory</label><select id="ledgerSubcategory" onchange="updateSubcategoryOptions()"><option value="">— Select —</option></select></div>
+        <div class="fg" id="ledgerSubcategoryGroup"><label>Subcategory</label><select id="ledgerSubcategory"><option value="">— Select —</option></select></div>
         <div class="fg" id="ledgerVendorGroup"><label>Courier provider</label><select id="ledgerVendor"><option>Blue Dart</option><option>Delhivery</option><option>Shree Maruti Couriers</option><option>Ekart</option></select></div>
         <div class="fg full" id="ledgerPayeeGroup"><label id="ledgerPayeeLabel">Employee / utility provider</label><input id="ledgerPayee" maxlength="160" placeholder="Name or provider"></div>
         <div class="fg full" id="ledgerStaffPhoneGroup" style="display:none;"><label for="ledgerStaffPhone">Staff WhatsApp number</label><input id="ledgerStaffPhone" type="tel" maxlength="24" placeholder="e.g. 9818114991"><small style="color:var(--muted);">When salary is fully paid and saved, WhatsApp Web opens in this browser with a message ready for you to review and send.</small></div>
@@ -1393,11 +1393,19 @@ function openLedgerEntry(kind,id) {
   document.getElementById('ledgerVendorGroup').style.display=kind==='purchase'?'':'none';
   document.getElementById('ledgerCategoryGroup').style.display=kind==='purchase'?'none':'';
   document.getElementById('ledgerPayeeGroup').style.display=kind==='purchase'?'none':'';
-  document.getElementById('ledgerModalTitle').textContent=kind==='purchase'?'ADD COURIER PURCHASE BILL':'ADD SALARY / UTILITY EXPENSE';
+  // The subcategory list only means something for salary/utilities/vehicle.
+  document.getElementById('ledgerSubcategoryGroup').style.display=kind==='purchase'?'none':'';
+  document.getElementById('ledgerPayeeLabel').textContent=kind==='vehicle'?'Vehicle hire / driver name':kind==='salary'?'Employee name':'Utility provider name';
+  document.getElementById('ledgerModalTitle').textContent=kind==='purchase'?'ADD COURIER PURCHASE BILL':kind==='vehicle'?'ADD VEHICLE EXPENSE':'ADD SALARY / UTILITY EXPENSE';
   // 'expense' is the panel-level button, not a kind. It must land on a real
   // kind or the saved entry would be tagged with an unknown category.
   document.getElementById('ledgerCategory').value=LEDGER_EXPENSE_DEFAULT;
   updateLedgerPayeeFields();
+  // For an existing row the category is set AFTER updateLedgerPayeeFields(),
+  // which builds the subcategory options from the OLD value. Rebuild them now or
+  // a saved Vehicle Hire row opens with an empty subcategory list and the saved
+  // value has nowhere to land.
+  if(id)updateSubcategoryOptions();
   if(id) {
     var row=financeEntries.find(function(item){return item.id===id;});
     if(!row)return;
@@ -1441,8 +1449,13 @@ function updateSubcategoryOptions() {
   const kind = document.getElementById('ledgerCategory').value;
   const sel = document.getElementById('ledgerSubcategory');
   if (!sel) return;
+  // Preserve the current value when it still exists for this kind. Rebuilding
+  // without this reset the selection, so opening an existing Vehicle Hire row
+  // silently dropped the subcategory back to '— Select —'.
+  const current = sel.value;
   const opts = SUBCATEGORIES[kind] || [];
   sel.innerHTML = '<option value="">— Select —</option>' + opts.map(o => '<option value="' + o + '">' + o + '</option>').join('');
+  if (current && opts.indexOf(current) >= 0) sel.value = current;
 }
 function normalizeStaffWhatsAppPhone(value) {
   var digits=String(value||'').replace(/\D/g,'');
@@ -1468,8 +1481,14 @@ async function saveLedgerEntry(event) {
   if(paid>total){toast('w','Check payment','Amount paid cannot exceed the total bill.');return;}
   if(kind==='purchase'&&!reference){toast('w','Bill number needed','Enter the courier provider bill number to help prevent duplicate entries.');return;}
   if(gst>0&&document.getElementById('ledgerGstMode').value==='none'){toast('w','GST treatment needed','Choose CGST + SGST or IGST for a bill with GST.');return;}
-  if((kind==='salary'||kind==='utilities')&&!document.getElementById('ledgerPayee').value.trim()){
-    toast('w','Payee needed','Enter the employee or utility provider name.');return;
+  if((kind==='salary'||kind==='utilities'||kind==='vehicle')&&!document.getElementById('ledgerPayee').value.trim()){
+    toast('w','Payee needed','Enter the employee, provider or vehicle hire name.');return;
+  }
+  // A subcategory is how Vehicle Hire is distinguished from Fuel or Maintenance,
+  // so require it for the kinds that have one. Without this every vehicle entry
+  // saved with a blank subcategory and the hire could not be identified later.
+  if(kind!=='purchase'&&!String(document.getElementById('ledgerSubcategory').value||'').trim()){
+    toast('w','Subcategory needed','Choose the expense subcategory so this entry is identified correctly.');return;
   }
   var staffPhone=kind==='salary'?document.getElementById('ledgerStaffPhone').value.trim():'';
   if(kind==='salary'&&staffPhone&&!normalizeStaffWhatsAppPhone(staffPhone)){
