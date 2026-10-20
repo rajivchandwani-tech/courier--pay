@@ -669,6 +669,7 @@ td{padding:12px 16px;font-size:13px;vertical-align:middle;}
           <div class="sc o"><div class="sc-lbl">Courier costs</div><div class="sc-val" id="pnlCourier">₹0</div><div class="sc-sub">Provider bills this month</div></div>
           <div class="sc w"><div class="sc-lbl">Salary</div><div class="sc-val" id="pnlSalary">₹0</div><div class="sc-sub">Salary expense this month</div></div>
           <div class="sc p"><div class="sc-lbl">Utilities</div><div class="sc-val" id="pnlUtilities">₹0</div><div class="sc-sub">Utility expense this month</div></div>
+          <div class="sc o"><div class="sc-lbl">Vehicle</div><div class="sc-val" id="pnlVehicle">₹0</div><div class="sc-sub">Vehicle hire &amp; running cost this month</div></div>
           <div class="sc c"><div class="sc-lbl">Operating profit</div><div class="sc-val" id="pnlProfit">₹0</div><div class="sc-sub">Before other/unrecorded costs</div></div>
         </div>
         <div class="panel"><div class="panel-hd"><div class="panel-title">MONTHLY ACCOUNT SUMMARY</div><button class="btn btn-ghost btn-sm" onclick="exportLedgerCSV('month')">Export ledger CSV</button></div><div class="ledger-table-wrap"><table><thead><tr><th>Account</th><th>Entries</th><th>GST recorded</th><th>Amount included in P&amp;L</th><th>Unpaid balance</th></tr></thead><tbody id="pnlRows"></tbody><tfoot id="pnlFoot"></tfoot></table></div><div style="padding:12px 18px;color:var(--muted);font-size:11px;">Profit is a management estimate based only on invoices and the expenses recorded here. It is not a substitute for a GST return or filed financial statements.</div></div>
@@ -844,6 +845,15 @@ function updateFYLabels() {
 // ══════════════════════════════════════════════════
 var invoices    = [];
 var financeEntries = [];
+
+// Every expense kind the app can record. `vehicle` was missing from the filters
+// below, so Vehicle Hire entries were dropped on load and on sync: the entry
+// saved locally, but the next sync replaced the list and the vehicle entry
+// silently disappeared.
+var LEDGER_KINDS = ['purchase', 'salary', 'utilities', 'vehicle'];
+// The '+ Add Expense' button passes 'expense' (a panel name, not a kind), so the
+// form needs a real default to fall back to.
+var LEDGER_EXPENSE_DEFAULT = 'salary';
 var ledgerCloudConnected = false;
 var ledgerSyncBusy = false;
 var appCloudConnected = false;
@@ -981,7 +991,7 @@ function localLoad() {
   if (inv)  { invoices = JSON.parse(inv); }
   if (sett) { settings = Object.assign(settings, JSON.parse(sett)); }
   if (ctr)  { invCounter = parseInt(ctr)||100; }
-  if (ledger) { try { financeEntries = JSON.parse(ledger).filter(function(row){return row&&row.id&&['purchase','salary','utilities'].indexOf(row.kind)>=0;}); } catch(e) { financeEntries=[]; } }
+  if (ledger) { try { financeEntries = JSON.parse(ledger).filter(function(row){return row&&row.id&&LEDGER_KINDS.indexOf(row.kind)>=0;}); } catch(e) { financeEntries=[]; } }
   // Recalculate all statuses on load (fixes stale status bug)
     invoices = invoices.map(function(i) {
       i.id = +i.id; // normalize id to number
@@ -1238,9 +1248,14 @@ function mergeSharedInvoices(remoteState) {
       merged=merged.map(function(row){return String(row.id)===key?local:row;});
     }else if(base){
       // The local copy still matches its last shared version, so keep the cloud edit.
-    }else if(localTime&&localTime>cloudTime){
+    }else if(localTime&&(!cloudTime||localTime>=cloudTime)){
+      // No trustworthy base AND the local copy is at least as new as the cloud's
+      // (or the cloud carries no timestamp at all) -> keep the LOCAL row.
+      // The previous test was `localTime > cloudTime`; with cloudTime === NaN
+      // (cloud rows often carry no updatedAt) that was always false, so the
+      // cloud copy always won and a paid invoice reverted to unpaid.
       merged=merged.map(function(row){return String(row.id)===key?local:row;});
-    }else if(!localTime||(!cloudTime&&localTime===cloudTime)){
+    }else if(!localTime){
       var preserved=Object.assign({},local,{id:Date.now()*100+Math.floor(Math.random()*90),updatedAt:local.updatedAt||new Date().toISOString()});
       merged.push(preserved);
     }
@@ -1357,7 +1372,7 @@ async function syncLedgerCloud() {
       if(index===undefined){mergedById[row.id]=merged.length;merged.push(row);}
       else if(Date.parse(row.updatedAt||row.createdAt||0)>Date.parse(merged[index].updatedAt||merged[index].createdAt||0))merged[index]=row;
     });
-    financeEntries=merged.filter(function(row){return row&&row.id&&['purchase','salary','utilities'].indexOf(row.kind)>=0;});
+    financeEntries=merged.filter(function(row){return row&&row.id&&LEDGER_KINDS.indexOf(row.kind)>=0;});
     saveFinanceEntriesLocal();
     setLedgerCloudStatus('Shared ledger connected. Purchases and expenses are available to authorized users on their devices.',true);
     renderLedger();
@@ -1379,7 +1394,9 @@ function openLedgerEntry(kind,id) {
   document.getElementById('ledgerCategoryGroup').style.display=kind==='purchase'?'none':'';
   document.getElementById('ledgerPayeeGroup').style.display=kind==='purchase'?'none':'';
   document.getElementById('ledgerModalTitle').textContent=kind==='purchase'?'ADD COURIER PURCHASE BILL':'ADD SALARY / UTILITY EXPENSE';
-  document.getElementById('ledgerCategory').value=kind==='expense'?'salary':'utilities';
+  // 'expense' is the panel-level button, not a kind. It must land on a real
+  // kind or the saved entry would be tagged with an unknown category.
+  document.getElementById('ledgerCategory').value=LEDGER_EXPENSE_DEFAULT;
   updateLedgerPayeeFields();
   if(id) {
     var row=financeEntries.find(function(item){return item.id===id;});
@@ -1544,13 +1561,16 @@ function renderLedger() {
   }).join(''):'<tr><td colspan=\"10\" style=\"text-align:center;padding:28px;color:var(--muted);\">No courier bills recorded for this filter.</td></tr>';
   var expenseSearch=(document.getElementById('expenseSearch')||{}).value||'';
   var expenseMonth=(document.getElementById('expenseMonth')||{}).value||'';
-  var expenses=financeEntries.filter(function(row){return (row.kind==='salary'||row.kind==='utilities')&&!row.voided;}).filter(function(row){
+  // Vehicle Hire and other vehicle expenses belong in this register too.
+  // They were excluded, so a vehicle entry saved and synced correctly but never
+  // appeared on screen — which reads as 'the entry did not save'.
+  var expenses=financeEntries.filter(function(row){return row.kind!=='purchase'&&!row.voided;}).filter(function(row){
     var hay=(row.kind+' '+row.payee+' '+row.reference+' '+row.notes).toLowerCase();
     return (!expenseSearch||hay.indexOf(expenseSearch.toLowerCase())>=0)&&(!expenseMonth||row.date.slice(0,7)===expenseMonth);
   }).sort(function(a,b){return (b.date||'').localeCompare(a.date||'');});
   var expenseEl=document.getElementById('expenseRows');
   if(expenseEl)expenseEl.innerHTML=expenses.length?expenses.map(function(row){
-    return '<tr><td>'+ledgerEscape(row.date)+'</td><td>'+ (row.kind==='salary'?'Salary':'Utilities')+'</td><td>'+ledgerEscape(row.payee)+'</td><td>'+ledgerEscape(row.reference||'—')+'</td><td>'+money2(row.taxable)+'</td><td>'+money2(row.gst)+'</td><td><strong>'+money2(ledgerExpenseCost(row))+'</strong></td><td>'+money2(row.paid)+'</td><td>'+money2(ledgerBalance(row))+'</td><td>'+ledgerActions(row)+'</td></tr>';
+    return '<tr><td>'+ledgerEscape(row.date)+'</td><td>'+ (row.kind==='salary'?'Salary':row.kind==='vehicle'?'Vehicle':'Utilities')+'</td><td>'+ledgerEscape(row.payee)+'</td><td>'+ledgerEscape(row.reference||'—')+'</td><td>'+money2(row.taxable)+'</td><td>'+money2(row.gst)+'</td><td><strong>'+money2(ledgerExpenseCost(row))+'</strong></td><td>'+money2(row.paid)+'</td><td>'+money2(ledgerBalance(row))+'</td><td>'+ledgerActions(row)+'</td></tr>';
   }).join(''):'<tr><td colspan=\"10\" style=\"text-align:center;padding:28px;color:var(--muted);\">No salary or utility entries recorded for this filter.</td></tr>';
   renderMonthlyPnL();
 }
@@ -1567,21 +1587,25 @@ function renderMonthlyPnL() {
     var recorded=(row.partPayments||[]).reduce(function(partSum,payment){return partSum+(Number(payment.amount)||0);},0);
     return sum+Math.max(0,totalAmt(row)-recorded);
   },0);
-  var groups={purchase:0,salary:0,utilities:0};
-  var counts={purchase:0,salary:0,utilities:0};
-  var gst={purchase:0,salary:0,utilities:0};
-  var balances={purchase:0,salary:0,utilities:0};
+  // Vehicle is an expense account; leaving it out overstates profit and shows
+  // a zero vehicle line no matter how many vehicle entries exist.
+  var groups={purchase:0,salary:0,utilities:0,vehicle:0};
+  var counts={purchase:0,salary:0,utilities:0,vehicle:0};
+  var gst={purchase:0,salary:0,utilities:0,vehicle:0};
+  var balances={purchase:0,salary:0,utilities:0,vehicle:0};
   monthEntries.forEach(function(row){
     groups[row.kind]=(groups[row.kind]||0)+ledgerExpenseCost(row);
     counts[row.kind]=(counts[row.kind]||0)+1;
     gst[row.kind]=(gst[row.kind]||0)+(Number(row.gst)||0);
     balances[row.kind]=(balances[row.kind]||0)+ledgerBalance(row);
   });
-  var profit=revenue-groups.purchase-groups.salary-groups.utilities;
+  var profit=revenue-groups.purchase-groups.salary-groups.utilities-groups.vehicle;
   document.getElementById('pnlRevenue').textContent=money2(revenue);
   document.getElementById('pnlCourier').textContent=money2(groups.purchase);
   document.getElementById('pnlSalary').textContent=money2(groups.salary);
   document.getElementById('pnlUtilities').textContent=money2(groups.utilities);
+  var vehEl=document.getElementById('pnlVehicle');
+  if(vehEl)vehEl.textContent=money2(groups.vehicle);
   var profitEl=document.getElementById('pnlProfit');
   profitEl.textContent=money2(profit);
   profitEl.style.color=profit>=0?'var(--accent3)':'var(--danger)';
@@ -1589,7 +1613,8 @@ function renderMonthlyPnL() {
     {name:'Net sales (invoice date)',count:sales.length,tax:sales.reduce(function(s,i){return s+(Number(i.gst)||0);},0),amount:revenue,balance:salesReceivable},
     {name:'Courier provider bills',count:counts.purchase,tax:gst.purchase,amount:groups.purchase,balance:balances.purchase},
     {name:'Salary',count:counts.salary,tax:gst.salary,amount:groups.salary,balance:balances.salary},
-    {name:'Utilities',count:counts.utilities,tax:gst.utilities,amount:groups.utilities,balance:balances.utilities}
+    {name:'Utilities',count:counts.utilities,tax:gst.utilities,amount:groups.utilities,balance:balances.utilities},
+    {name:'Vehicle',count:counts.vehicle,tax:gst.vehicle,amount:groups.vehicle,balance:balances.vehicle}
   ];
   document.getElementById('pnlRows').innerHTML=rows.map(function(row){
     return '<tr><td>'+row.name+'</td><td>'+row.count+'</td><td>'+money2(row.tax)+'</td><td>'+money2(row.amount)+'</td><td>'+money2(row.balance)+'</td></tr>';
