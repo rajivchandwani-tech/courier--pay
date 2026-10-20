@@ -1106,7 +1106,17 @@ async function pollActivityLog(manual) {
   try {
     var data=activityInitialized?await fetchActivityPage('after='+encodeURIComponent(activityCursor)+'&limit=100'):await fetchActivityPage('latest=1&limit=100');
     var incoming=Array.isArray(data.events)?data.events:[];
-    if(!activityInitialized){activityEvents=incoming;activityCursor=Number(data.cursor)||0;activityHasOlder=!!data.hasMore;activityInitialized=true;}
+    if(!activityInitialized){
+      // `latest=1` returns the batch OLDEST-first (the handler DESC-selects then
+      // reverses), so the last element is the newest — that is the cursor. Using
+      // the first element would park the cursor at the bottom of the page and
+      // the next poll would replay history as if it were new.
+      var newestId=incoming.length?Number(incoming[incoming.length-1].id):0;
+      activityEvents=incoming;
+      activityCursor=Math.max(newestId,Number(data.cursor)||0);
+      activityHasOlder=!!data.hasMore;
+      activityInitialized=true;
+    }
     else if(incoming.length){
       var existing={};activityEvents.forEach(function(item){existing[String(item.id)]=true;});
       incoming.forEach(function(item){if(!existing[String(item.id)])activityEvents.push(item);});
@@ -3938,7 +3948,15 @@ async function loadClients() {
     clients = data.clients || [];
     renderClients();
   } catch (e) {
+    // Never swallow this silently: a failed client load used to leave the table
+    // looking empty with no explanation, which reads as "the clients are gone".
     console.error('loadClients error:', e);
+    const tbl = document.getElementById('clientsTbl');
+    if (tbl && !clients.length) {
+      tbl.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:32px;color:var(--warn);">'
+        + 'Could not load clients: ' + (e && e.message ? e.message : 'unknown error')
+        + '</td></tr>';
+    }
   }
 }
 
