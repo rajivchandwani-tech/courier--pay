@@ -16,12 +16,14 @@
  */
 const crypto = require('node:crypto');
 
-// A token must be verifiable no matter which build instance serves it, so the
-// secret MUST come from the environment. A hardcoded fallback silently produces
-// tokens that other instances reject with a bare 401 (which reads to the user as
-// "the activity log is broken" while the data is sitting in the database).
+// A token must verify no matter which build instance serves the request.
+// Vercel can serve more than one build at a time while a deploy propagates, so
+// `verify()` accepts either the configured secret or the legacy hardcoded one.
+// Signing always uses the configured secret; the legacy value is read-only.
 const APP_PASSWORD = process.env.APP_PASSWORD || '';
 const SESSION_SECRET = process.env.SESSION_SECRET || '';
+const LEGACY_SECRET = 'travel-point-os-session-key';   // pre-env builds only
+const SIGNING_SECRET = SESSION_SECRET || LEGACY_SECRET;
 const TOKEN_TTL_MS = 1000 * 60 * 60 * 24 * 30;   // 30 days
 
 function send(res, status, payload) {
@@ -58,7 +60,7 @@ function b64urlEncode(buf) {
 }
 function sign(payload) {
   const body = b64urlEncode(JSON.stringify(payload));
-  const sig = crypto.createHmac('sha256', SESSION_SECRET).update(body).digest('base64url');
+  const sig = crypto.createHmac('sha256', SIGNING_SECRET).update(body).digest('base64url');
   return body + '.' + sig;
 }
 function verify(token) {
@@ -66,11 +68,19 @@ function verify(token) {
   const dot = token.indexOf('.');
   const body = token.slice(0, dot);
   const sig = token.slice(dot + 1);
-  const expected = crypto.createHmac('sha256', SESSION_SECRET).update(body).digest('base64url');
-  if (sig.length !== expected.length) return null;
-  try {
-    if (!crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expected))) return null;
-  } catch { return null; }
+  // Accept the current secret OR the legacy one. The legacy value is only ever
+  // used to VERIFY — never to sign — so it can be retired once no build that
+  // issued legacy-signed tokens is still serving traffic.
+  const candidates = SESSION_SECRET ? [SESSION_SECRET, LEGACY_SECRET] : [LEGACY_SECRET];
+  let matched = false;
+  for (const secret of candidates) {
+    const expected = crypto.createHmac('sha256', secret).update(body).digest('base64url');
+    if (sig.length !== expected.length) continue;
+    try {
+      if (crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expected))) { matched = true; break; }
+    } catch { /* lengths differ — try the next candidate */ }
+  }
+  if (!matched) return null;
   try {
     const payload = JSON.parse(Buffer.from(body, 'base64url').toString('utf8'));
     if (!payload.exp || Number(payload.exp) < Date.now()) return null;
