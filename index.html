@@ -1078,7 +1078,10 @@ function renderActivityLog() {
     var event=item.event||{},recorded=activityTime(item.recordedAt),businessDate=event.transactionDate?'Transaction date: '+ledgerEscape(event.transactionDate):'No separate transaction date recorded';
     var source=item.clientId===getActivityClientId()?'This browser':'Another browser or device';
     var detail=[event.party,event.reference?'Ref '+event.reference:''].filter(Boolean).map(ledgerEscape).join(' · ');
-    var amount=event.amount!==null&&event.amount!==undefined&&Number.isFinite(Number(event.amount))?'<div class="activity-amount">'+money2(event.amount)+'</div>':'';
+    // event.amount is the GST-INCLUSIVE total (stored amount + gst), while the
+    // invoice screen shows the taxable value. Label it, or the same invoice
+    // looks like it has two different amounts.
+    var amount=event.amount!==null&&event.amount!==undefined&&Number.isFinite(Number(event.amount))?'<div class="activity-amount">'+money2(event.amount)+' <span style="font-size:10px;color:var(--muted);font-weight:400">incl GST</span></div>':'';
     return '<div class="activity-item"><div><div class="activity-summary">'+ledgerEscape(event.summary||event.type||'Activity recorded')+'</div>'+(detail?'<div class="activity-meta">'+detail+'</div>':'')+'<div class="activity-meta">Recorded: '+ledgerEscape(recorded)+' · '+ledgerEscape(businessDate)+' · '+source+'</div></div>'+amount+'</div>';
   }).join('');
   var empty='<div class="activity-empty">No activity has been recorded yet. New invoices, payments, purchases, salary/utility entries, and edits will appear here.</div>';
