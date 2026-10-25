@@ -237,10 +237,10 @@ const GEMINI_KEY_NAMES = ['GEMINI_API_KEY', 'GEMINI_BACKUP_API_KEY', 'GEMINI_THI
 const PLACEHOLDER_VALUES = new Set(['your_gemini_api_key_here', 'your_openrouter_api_key_here', 'your_openai_api_key_here', 'your_groq_api_key_here', '']);
 
 function providerKeys() {
+  const openRouterKeys = OPENROUTER_KEY_NAMES.map(name => process.env[name]).filter(k => k && !PLACEHOLDER_VALUES.has(k));
+  if (openRouterKeys.length) return { provider: 'OpenRouter', keys: openRouterKeys };
   const geminiKeys = GEMINI_KEY_NAMES.map(name => process.env[name]).filter(k => k && !PLACEHOLDER_VALUES.has(k));
   if (geminiKeys.length) return { provider: 'Gemini', keys: geminiKeys };
-  const keys = OPENROUTER_KEY_NAMES.map(name => process.env[name]).filter(k => k && !PLACEHOLDER_VALUES.has(k));
-  if (keys.length) return { provider: 'OpenRouter', keys };
   if (process.env.OPENAI_API_KEY && !PLACEHOLDER_VALUES.has(process.env.OPENAI_API_KEY)) return { provider: 'OpenAI', keys: [process.env.OPENAI_API_KEY] };
   if (process.env.GROQ_API_KEY && !PLACEHOLDER_VALUES.has(process.env.GROQ_API_KEY)) return { provider: 'Groq', keys: [process.env.GROQ_API_KEY] };
   return { provider: 'OpenRouter', keys: [] };
