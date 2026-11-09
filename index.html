@@ -1859,7 +1859,7 @@ function markPaid(id) {
   var pd = today();
   invoices = invoices.map(function(i){ return i.id===id ? Object.assign({},i,{status:'paid',paiddate:i.paiddate||pd}) : i; });
   var inv = invoices.find(function(i){ return i.id===id; });
-  localSave(); renderAll();
+  localSave(); renderAll(); renderAging();
   toast('s','&#10003; Marked Paid',(inv?inv.num:'Invoice')+' paid on '+pd+'.');
 }
 
