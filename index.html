@@ -1181,7 +1181,10 @@ async function loadOlderActivity() {
   finally { activityBusy=false; }
 }
 async function appStateApi(method,payload) {
-  var response=await fetch('/api/app-state',{method:method,headers:{'Content-Type':'application/json'},cache:'no-store',body:payload?JSON.stringify(payload):undefined});
+  var headers={'Content-Type':'application/json'};
+  var token=getStoredToken();
+  if(token)headers['X-App-Token']=token;
+  var response=await fetch('/api/app-state',{method:method,headers:headers,cache:'no-store',body:payload?JSON.stringify(payload):undefined});
   var contentType=(response.headers.get('content-type')||'').toLowerCase();
   if(!contentType.includes('application/json'))throw new Error('Sign in to the protected Travel Point OS site to use shared data.');
   var data=await response.json().catch(function(){return {};});
