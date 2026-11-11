@@ -1050,7 +1050,10 @@ function setLedgerCloudStatus(message, connected) {
   });
 }
 async function ledgerApi(method, payload) {
-  var response=await fetch('/api/ledger',{method:method,headers:{'Content-Type':'application/json'},cache:'no-store',body:payload?JSON.stringify(payload):undefined});
+  var headers={'Content-Type':'application/json'};
+  var token=getStoredToken();
+  if(token)headers['X-App-Token']=token;
+  var response=await fetch('/api/ledger',{method:method,headers:headers,cache:'no-store',body:payload?JSON.stringify(payload):undefined});
   if(!(response.headers.get('content-type')||'').toLowerCase().includes('application/json'))throw new Error('Sign in to the protected Travel Point OS site to use shared finance records.');
   var data=await response.json().catch(function(){return {};});
   if(!response.ok){var error=new Error(data.error||('Ledger request failed ('+response.status+').'));error.status=response.status;throw error;}
