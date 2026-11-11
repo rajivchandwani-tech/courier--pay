@@ -546,7 +546,7 @@ td{padding:12px 16px;font-size:13px;vertical-align:middle;}
       <div class="tab-view" id="tab-activity">
         <div class="ledger-note" id="activitySyncStatus">Connecting to shared activity history…</div>
         <div class="panel">
-          <div class="panel-hd"><div><div class="panel-title">TRANSACTION &amp; CHANGE LOG</div><div style="font-size:11px;color:var(--muted);margin-top:5px;">Server-recorded time is shown in India Standard Time. Transaction date is listed separately when available.</div></div><button class="btn btn-ghost btn-sm" onclick="pollActivityLog(true)">&#8635; Refresh</button></div>
+          <div class="panel-hd"><div><div class="panel-title">TRANSACTION &amp; CHANGE LOG</div><div style="font-size:11px;color:var(--muted);margin-top:5px;">Showing the latest figures per record. Server-recorded time is shown in India Standard Time. Transaction date is listed separately when available.</div></div><div style="display:flex;gap:6px;"><button class="btn btn-ghost btn-sm" id="activityToggleBtn" onclick="toggleActivityView()">Show history</button><button class="btn btn-ghost btn-sm" onclick="pollActivityLog(true)">&#8635; Refresh</button></div></div>
           <div style="padding:11px 18px;border-bottom:1px solid var(--border);font-size:11px;color:var(--muted);">The audit log records committed changes from this release onward. Earlier records remain intact, but their historical change timestamps were not stored.</div>
           <div id="activityLatest" style="padding:12px 18px;border-bottom:1px solid var(--border);font-size:12px;color:var(--muted);">Last activity: waiting for shared history…</div>
           <div id="activityRows"><div class="activity-empty">Loading activity history…</div></div>
@@ -865,6 +865,7 @@ var appCloudRevision = 0;
 var appSettingsUpdatedAt = '';
 var appUiReady = false;
 var activityEvents = [];
+var activityShowAll = false;
 var activityCursor = 0;
 var activityUnread = 0;
 var activityInitialized = false;
@@ -1082,8 +1083,27 @@ function updateActivityBadges() {
   var nav=document.getElementById('activityNavBadge'),top=document.getElementById('activityTopBadge');
   [nav,top].forEach(function(el){if(!el)return;el.style.display=activityUnread?'inline-flex':'none';el.textContent=activityUnread>99?'99+':String(activityUnread);});
 }
+function toggleActivityView() {
+  activityShowAll=!activityShowAll;
+  var btn=document.getElementById('activityToggleBtn');
+  if(btn)btn.textContent=activityShowAll?'Show latest only':'Show history';
+  renderActivityLog();
+}
 function renderActivityLog() {
   var sorted=activityEvents.slice().sort(function(a,b){return Number(b.id)-Number(a.id);});
+  // "Last edited figures": by default show only the newest event per record so
+  // the log reflects the current figures, not every historical step. Toggle to
+  // see the full history.
+  if(!activityShowAll){
+    var seen={};
+    sorted=sorted.filter(function(item){
+      var rid=(item.event||{}).recordId||'';
+      if(!rid)return true;
+      if(seen[rid])return false;
+      seen[rid]=true;
+      return true;
+    });
+  }
   var html=sorted.map(function(item){
     var event=item.event||{},recorded=activityTime(item.recordedAt),businessDate=event.transactionDate?'Transaction date: '+ledgerEscape(event.transactionDate):'No separate transaction date recorded';
     var source=item.clientId===getActivityClientId()?'This browser':'Another browser or device';
@@ -1294,6 +1314,8 @@ async function syncAppCloud() {
   var before=stableJson({invoices:invoices,settings:settings});
   try {
     var remote=await appStateApi('GET');
+    var remoteJson=stableJson(remote.state||{});
+    var localWasStale = before !== remoteJson;
     for(var attempt=0;attempt<4;attempt++){
       mergeSharedInvoices(remote.state);
       writeLocalState();
@@ -1301,6 +1323,9 @@ async function syncAppCloud() {
       if(stableJson(remote.state||{})!==stableJson(desired)){
         try {
           var activityBatch=buildInvoiceActivityEvents(remote.state,desired);
+          if(localWasStale&&activityBatch.length<400){
+            activityBatch.unshift({type:'browser_sync',category:'system',recordId:'',reference:'',party:'',amount:null,transactionDate:'',summary:'This browser opened with older figures and synced from the server.'});
+          }
           var saved=await appStateApi('POST',{expectedRevision:Number(remote.revision)||0,state:desired,activityEvents:activityBatch,clientId:getActivityClientId()});
           appCloudRevision=Number(saved.revision)||0;
         }catch(error){
