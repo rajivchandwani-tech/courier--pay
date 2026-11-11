@@ -492,7 +492,7 @@ td{padding:12px 16px;font-size:13px;vertical-align:middle;}
     <div class="nav-item" onclick="showTab('settings')"><span class="nav-icon">&#9881;&#65039;</span> Settings</div>
     <div class="nav-item" onclick="openM('recoverModal')"><span class="nav-icon">&#128190;</span> Recover Data</div>
     <div class="sidebar-footer">
-      <div class="sync-row"><div class="sync-dot" id="sdot" style="background:var(--warn);"></div><span id="stxt" title="Connecting to shared Travel Point storage">Connecting to shared data…</span><button class="btn btn-ghost btn-sm" id="forceSyncBtn" onclick="forceSyncNow()" title="Force sync now — pull latest from server" style="margin-left:auto;padding:2px 8px;font-size:11px;">&#8635; Sync</button></div>
+      <div class="sync-row"><div class="sync-dot" id="sdot" style="background:var(--warn);"></div><span id="stxt" title="Connecting to shared Travel Point storage">Connecting to shared data…</span><button class="btn btn-ghost btn-sm" id="resetCloudBtn" onclick="resetToCloud()" title="Discard this browser's cached invoices and reload the shared cloud data" style="margin-left:auto;padding:2px 8px;font-size:11px;">Reset</button><button class="btn btn-ghost btn-sm" id="forceSyncBtn" onclick="forceSyncNow()" title="Force sync now — pull latest from server" style="padding:2px 8px;font-size:11px;">&#8635; Sync</button></div>
       <div style="margin-top:2px;">v5.0 Final · FY 2025-26</div>
     </div>
   </nav>
@@ -1264,6 +1264,11 @@ function mergeSharedInvoices(remoteState) {
     }
     if(invoiceSyncContent(local)===invoiceSyncContent(cloud))return;
     var localTime=Date.parse(local.updatedAt||0),cloudTime=Date.parse(cloud.updatedAt||0);
+    // The cloud is the single source of truth. If the server's copy is strictly
+    // newer than this browser's cached copy, the browser is stale and must not
+    // overwrite the server edit (this is what kept a pre-restore cache showing
+    // old unpaid totals and re-pushing them to Neon).
+    if(localTime&&cloudTime&&cloudTime>localTime)return;
     var base=appLastSyncedInvoices.filter(function(row){return String(row.id)===key;})[0];
     var localChangedFromBase=base&&invoiceSyncContent(local)!==invoiceSyncContent(base);
     var cloudChangedFromBase=base&&invoiceSyncContent(cloud)!==invoiceSyncContent(base);
@@ -1383,7 +1388,36 @@ async function forceSyncNow() {
   }catch(error){
     toast('e','Sync failed',error.message||'Server unavailable');
   }finally{
-    if(btn){btn.disabled=false;btn.textContent='\u21BB Sync';}
+    if(btn){btn.disabled=false;btn.textContent='↻ Sync';}
+  }
+}
+// Discard this browser's cached invoice copy and take the shared cloud state.
+// Use when the dashboard shows a stale total that a normal Sync will not fix.
+async function resetToCloud(){
+  if(!confirm("Discard this browser's cached invoices and reload the shared cloud data?\n\nThe cloud (Neon) is the source of truth. Invoices that exist only in this browser and were never synced will be lost."))return;
+  var btn=document.getElementById('resetCloudBtn');
+  if(btn){btn.disabled=true;btn.textContent='Resetting…';}
+  try{
+    ['cp_v5_invoices','cp_v5_shared_base_invoices','cp_v5_invoice_tombstones','cp_v5_settings_updated_at'].forEach(function(k){try{localStorage.removeItem(k);}catch(e){}});
+    var remote=await appStateApi('GET');
+    var state=remote&&remote.state;
+    if(!state)throw new Error('Server returned no shared data.');
+    invoices=(state.invoices||[]).map(function(row){return Object.assign({},row);});
+    invoiceTombstones=(state.deleted||[]).map(function(row){return Object.assign({},row);});
+    appLastSyncedInvoices=invoices.map(function(row){return Object.assign({},row);});
+    appCloudRevision=Number(remote.revision)||0;
+    if(state.settings&&typeof state.settings==='object')settings=Object.assign({},settings,state.settings);
+    appSettingsUpdatedAt=state.settingsUpdatedAt||'';
+    invCounter=Math.max(Number(invCounter)||100,Number(state.counter)||100);
+    writeLocalState();
+    try{localStorage.setItem('cp_v5_shared_base_invoices',JSON.stringify(appLastSyncedInvoices));}catch(e){}
+    if(appUiReady){renderAll();renderLedger();}
+    setAppCloudStatus('Reset to cloud · rev '+appCloudRevision,true);
+    toast('s','Reset complete','Now showing the shared cloud figures.');
+  }catch(error){
+    toast('e','Reset failed',error.message||'Server unavailable — reload to retry.');
+  }finally{
+    if(btn){btn.disabled=false;btn.textContent='Reset';}
   }
 }
 async function persistLedgerRecord(entry, quiet) {
