@@ -1054,6 +1054,7 @@ async function ledgerApi(method, payload) {
   var token=getStoredToken();
   if(token)headers['X-App-Token']=token;
   var response=await fetch('/api/ledger',{method:method,headers:headers,cache:'no-store',body:payload?JSON.stringify(payload):undefined});
+  if(response.status===401){setStoredToken('');showLogin();throw new Error('Session expired. Please login again.');}
   if(!(response.headers.get('content-type')||'').toLowerCase().includes('application/json'))throw new Error('Sign in to the protected Travel Point OS site to use shared finance records.');
   var data=await response.json().catch(function(){return {};});
   if(!response.ok){var error=new Error(data.error||('Ledger request failed ('+response.status+').'));error.status=response.status;throw error;}
@@ -1188,6 +1189,10 @@ async function appStateApi(method,payload) {
   var token=getStoredToken();
   if(token)headers['X-App-Token']=token;
   var response=await fetch('/api/app-state',{method:method,headers:headers,cache:'no-store',body:payload?JSON.stringify(payload):undefined});
+  // A 401 means this browser's session token is stale. Clear it and show the login
+  // screen, otherwise the Sync button reports a generic "could not reach the server"
+  // and the user has no way to re-authenticate (there is no logout button).
+  if(response.status===401){setStoredToken('');showLogin();throw new Error('Session expired. Please login again.');}
   var contentType=(response.headers.get('content-type')||'').toLowerCase();
   if(!contentType.includes('application/json'))throw new Error('Sign in to the protected Travel Point OS site to use shared data.');
   var data=await response.json().catch(function(){return {};});
