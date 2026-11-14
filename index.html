@@ -911,6 +911,9 @@ function getStatus(inv) {
 }
 
 function totalAmt(inv) { return (+inv.amount||0) + (+inv.gst||0); }
+function partPaidAmt(inv) { return (inv.partPayments||[]).reduce(function(s,p){ return s + (+p.amount||0); }, 0); }
+// Outstanding basis: billed minus part payments actually received.
+function netAmt(inv) { return totalAmt(inv) - partPaidAmt(inv); }
 
 function bdg(s) {
   if (s === 'partial') return '<span class="badge" style="background:rgba(255,107,53,.15);color:var(--accent2);border-color:rgba(255,107,53,.3);">part-paid</span>';
@@ -2066,9 +2069,9 @@ function renderStats() {
     var s = getStatus(inv);
     if (s==='paid') { if(inFY(inv)) col+=(+inv.amount||0)+(+inv.gst||0); }
     else {
-      out += totalAmt(inv);
-      if (s==='overdue') ov += totalAmt(inv);
-      else if (new Date(inv.due)<=wkEnd) wk += totalAmt(inv);
+      out += netAmt(inv);
+      if (s==='overdue') ov += netAmt(inv);
+      else if (new Date(inv.due)<=wkEnd) wk += netAmt(inv);
     }
   });
   document.getElementById('s-out').textContent = fmtINR(out);
@@ -2156,10 +2159,10 @@ function renderAging() {
   unpaid.forEach(function(inv){
     var od = daysOverdue(inv.due);
     if(od<=0) {}
-    else if(od<=30) buckets[0] += totalAmt(inv);
-    else if(od<=60) buckets[31] += totalAmt(inv);
-    else if(od<=90) buckets[61] += totalAmt(inv);
-    else             buckets[90] += totalAmt(inv);
+    else if(od<=30) buckets[0] += netAmt(inv);
+    else if(od<=60) buckets[31] += netAmt(inv);
+    else if(od<=90) buckets[61] += netAmt(inv);
+    else             buckets[90] += netAmt(inv);
   });
   document.getElementById('age0').textContent  = fmtINR(buckets[0]);
   document.getElementById('age31').textContent = fmtINR(buckets[31]);
@@ -2172,7 +2175,7 @@ function renderAging() {
     var pct = Math.min(100, Math.round(od/120*100));
     return '<div class="aging-row">'
       +'<div style="min-width:140px;"><strong style="font-size:13px;">'+inv.client+'</strong><br><span class="inv-id">'+inv.num+'</span></div>'
-      +'<div style="min-width:90px;font-weight:700;font-size:13px;">'+fmtINR(totalAmt(inv))+'</div>'
+      +'<div style="min-width:90px;font-weight:700;font-size:13px;">'+fmtINR(netAmt(inv))+'</div>'
       +'<div class="aging-bar-bg"><div class="aging-bar-fill" style="width:'+pct+'%;background:'+col+';"></div></div>'
       +'<div style="min-width:80px;text-align:right;font-size:12px;color:'+col+';">'+od+'d overdue</div>'
       +'<div style="min-width:80px;display:flex;justify-content:flex-end;gap:4px;">'
@@ -2232,6 +2235,7 @@ function renderReports() {
     clientMap[inv.client].count++;
     clientMap[inv.client].billed += totalAmt(inv);
     if (getStatus(inv)==='paid') clientMap[inv.client].paid += totalAmt(inv);
+    else clientMap[inv.client].paid += partPaidAmt(inv);
   });
   var clist = Object.keys(clientMap).map(function(k){return Object.assign({name:k},clientMap[k]);});
   clist.sort(function(a,b){return b.billed-a.billed;});
