@@ -1401,7 +1401,11 @@ async function syncAppCloud() {
     throw new Error('The data changed on another device repeatedly. Retry sync in a moment.');
   }catch(error){
     appSyncInitialized=true;
-    setAppCloudStatus((appCloudRevision?'Sync paused · saved locally':'Device-only until connected')+'. '+(error.message||'Shared storage unavailable.'),false);
+    // A 401 before any login is not an expired session — the browser simply has
+    // no token yet. Reporting "Session expired" there is wrong and alarms people.
+    var cloudDetail=error.message||'Shared storage unavailable.';
+    if(!getStoredToken()&&/session expired/i.test(cloudDetail))cloudDetail='Waiting for login.';
+    setAppCloudStatus((appCloudRevision?'Sync paused · saved locally':'Device-only until connected')+'. '+cloudDetail,false);
     if(appUiReady&&String(error.message||'').toLowerCase().indexOf('changed on another device')>=0){
       toast('e','Data conflict','Another browser saved newer data. Tap the Sync button to pull it.');
     }
