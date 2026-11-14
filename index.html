@@ -1395,7 +1395,10 @@ async function syncAppCloud() {
       setAppCloudStatus(duplicates.length?'Synced · check duplicate invoice number(s): '+duplicates.slice(0,3).join(', ')+(duplicates.length>3?'…':''):'All devices synced',true);
       appLastSyncedInvoices=desired.invoices.map(function(row){return Object.assign({},row);});
       try { localStorage.setItem('cp_v5_shared_base_invoices',JSON.stringify(appLastSyncedInvoices)); } catch(e) {}
-      if(appUiReady&&before!==stableJson({invoices:invoices,settings:settings})){renderAll();renderLedger();}
+      // appUiReady used to gate this, but every element renderAll touches is in
+      // the DOM by the time this script parses — and the gate meant a sync that
+      // finished after the first paint never refreshed the dashboard.
+      if(before!==stableJson({invoices:invoices,settings:settings})){renderAll();renderLedger();}
       return true;
     }
     throw new Error('The data changed on another device repeatedly. Retry sync in a moment.');
@@ -3124,7 +3127,9 @@ async function doLogin() {
     // init() ran before the token existed, so its first sync failed. Re-sync now
     // that we are authenticated, and re-render once the rows arrive.
     if (typeof syncAppCloud==='function') { try { syncAppCloud(); } catch(e) {} }
-    setTimeout(function(){ try { if (typeof renderAll==='function') renderAll(); } catch(e) {} }, 1200);
+    [1200,3000,6000].forEach(function(ms){
+      setTimeout(function(){ try { if (typeof renderAll==='function') renderAll(); } catch(e) {} }, ms);
+    });
     toast('s', 'Welcome', 'Login successful.');
   } catch(e) {
     if (err) { err.style.display = 'block'; err.textContent = e.message || 'Login failed'; }
