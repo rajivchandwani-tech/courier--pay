@@ -2569,6 +2569,12 @@ function toast(type,title,msg) {
 // ══════════════════════════════════════════════════
 // INIT
 // ══════════════════════════════════════════════════
+// The password gate (getStoredToken / showLogin / the token wrapper around
+// appStateApi) lives in a <script> parsed AFTER this one. Running init at parse
+// time made the first cloud sync fire with no token helper at all, which
+// surfaced as "getStoredToken is not defined". Waiting for window load
+// guarantees the gate is installed before the first sync.
+window.addEventListener('load', function(){
 (async function init(){
   localLoad();
   var pnlMonthInput=document.getElementById('pnlMonth');
@@ -2592,6 +2598,7 @@ function toast(type,title,msg) {
     setTimeout(function(){ls.style.display='none';},500);
   }, 800);
 })();
+});
 
 setInterval(function(){ renderStats(); renderAlerts(); }, 60000);
 
@@ -3114,6 +3121,10 @@ async function doLogin() {
     setStoredToken(data.token || '');
     showApp();
     if (pwd) pwd.value = '';
+    // init() ran before the token existed, so its first sync failed. Re-sync now
+    // that we are authenticated, and re-render once the rows arrive.
+    if (typeof syncAppCloud==='function') { try { syncAppCloud(); } catch(e) {} }
+    setTimeout(function(){ try { if (typeof renderAll==='function') renderAll(); } catch(e) {} }, 1200);
     toast('s', 'Welcome', 'Login successful.');
   } catch(e) {
     if (err) { err.style.display = 'block'; err.textContent = e.message || 'Login failed'; }
