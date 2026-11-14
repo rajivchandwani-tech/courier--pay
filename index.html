@@ -774,6 +774,22 @@ function inFY(inv) {
   var d = new Date(inv.invdate || inv.due || '');
   return d >= FY_START && d <= FY_END;
 }
+function dateInFY(dateStr) {
+  if (!dateStr) return false;
+  var d = new Date(dateStr);
+  return d >= FY_START && d <= FY_END;
+}
+// Money actually received in the FY: part payments counted on their own date,
+// plus the closing payment of a fully-paid invoice on its paiddate. A part-paid
+// invoice is therefore never counted as zero, and nothing is counted twice.
+function collectedInFY(inv) {
+  var sum = (inv.partPayments||[]).filter(function(p){return dateInFY(p.date);})
+            .reduce(function(s,p){return s+(+p.amount||0);},0);
+  if (inv.status==='paid' && dateInFY(inv.paiddate)) {
+    sum += Math.max(0, totalAmt(inv) - partPaidAmt(inv));
+  }
+  return sum;
+}
 
 function checkFYRollover() {
   var stored = localStorage.getItem('cp_v5_fy_start');
@@ -1252,6 +1268,27 @@ function buildInvoiceActivityEvents(previousState,nextState) {
   }
   return events;
 }
+// Invoice numbers are unique by definition, so two rows sharing one num are the
+// same invoice (a stale duplicate an old browser pushed, or a restored copy).
+// Keep the newest and drop the rest. Keyed on num — never on id — because the
+// original import used small sequential ids (1..78) for real invoices.
+function dedupeInvoiceNumbers(rows){
+  var keeper={};
+  rows.forEach(function(row){
+    if(!row)return;
+    var key=String(row.num||'').trim().toLowerCase();
+    if(!key)return;
+    var old=keeper[key];
+    if(!old){keeper[key]=row;return;}
+    var a=Date.parse(row.updatedAt||0)||0,b=Date.parse(old.updatedAt||0)||0;
+    if(a>b||(a===b&&Number(row.id||0)>Number(old.id||0)))keeper[key]=row;
+  });
+  return rows.filter(function(row){
+    if(!row)return false;
+    var key=String(row.num||'').trim().toLowerCase();
+    return !key||keeper[key]===row;
+  });
+}
 function mergeSharedInvoices(remoteState) {
   var remote=remoteState&&Array.isArray(remoteState.invoices)?remoteState.invoices:[];
   var remoteDeleted=remoteState&&Array.isArray(remoteState.deleted)?remoteState.deleted:[];
@@ -1261,12 +1298,6 @@ function mergeSharedInvoices(remoteState) {
     if(!item||item.id==null)return;var key=String(item.id),old=deletionById[key];
     if(!old||Date.parse(item.deletedAt||0)>Date.parse(old.deletedAt||0))deletionById[key]=item;
   });
-  // The baked-in May-2026 seed rows carry small sequential ids (1..78); a real
-  // invoice always gets id = Date.now() (>= 1e12). Drop them before merging so
-  // a browser that loaded the seed before cannot inflate the totals again.
-  if(invoices.some(function(row){return !!row&&Number(row.id)<1000000;})){
-    invoices=invoices.filter(function(row){return !!row&&Number(row.id)>=1000000;});
-  }
   remote.forEach(function(row){if(row&&row.id!=null)merged.push(row);});
   invoices.forEach(function(local){
     if(!local||local.id==null)return;
@@ -1305,9 +1336,7 @@ function mergeSharedInvoices(remoteState) {
     // baked-in seed rows are exactly that). The cloud row already in `merged`
     // is the single source of truth, so the stale copy is dropped here.
   });
-  // Same rule on the merged set, so a seed row an old browser already pushed to
-  // the cloud cannot survive there either.
-  merged=merged.filter(function(row){return !!row&&Number(row.id)>=1000000;});
+  merged=dedupeInvoiceNumbers(merged);
   merged=merged.filter(function(row){
     var deleted=deletionById[String(row.id)];
     return !deleted||Date.parse(row.updatedAt||0)>Date.parse(deleted.deletedAt||0);
@@ -2067,7 +2096,7 @@ function renderStats() {
   var wkEnd = new Date(); wkEnd.setDate(wkEnd.getDate()+7);
   invoices.forEach(function(inv){
     var s = getStatus(inv);
-    if (s==='paid') { if(inFY(inv)) col+=(+inv.amount||0)+(+inv.gst||0); }
+    if (s==='paid') { col+=collectedInFY(inv); }
     else {
       out += netAmt(inv);
       if (s==='overdue') ov += netAmt(inv);
@@ -2538,15 +2567,6 @@ function toast(type,title,msg) {
 // ══════════════════════════════════════════════════
 (async function init(){
   localLoad();
-  // One-time purge: this build used to bake a May-2026 sample export into every
-  // fresh browser. Those rows carry small sequential ids (1..78) and no
-  // updatedAt, while a real invoice always gets id = Date.now(). Drop them so a
-  // browser that loaded the seed before cannot keep inflating the totals.
-  var seedRows=invoices.filter(function(row){return !!row&&Number(row.id)<1000000;});
-  if(seedRows.length){
-    invoices=invoices.filter(function(row){return !!row&&Number(row.id)>=1000000;});
-    localSave();
-  }
   var pnlMonthInput=document.getElementById('pnlMonth');
   if(pnlMonthInput)pnlMonthInput.value=currentMonthKey();
   renderLedger();

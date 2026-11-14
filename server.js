@@ -158,7 +158,10 @@ function buildAssistantAnalysis(invoices, entries, calendar) {
     const fyInvoices = invoices.filter(invoice => invoice.status !== 'draft' && iso(invoice.invoiceDate) && invoice.invoiceDate >= fyRange.start && invoice.invoiceDate <= fyRange.end);
     const fyEntries = entries.filter(entry => !entry.voided && iso(entry.date) && entry.date >= fyRange.start && entry.date <= fyRange.end);
     const billed = fyInvoices.reduce((sum, invoice) => sum + totalAmount(invoice), 0);
-    const collectedByStatus = fyInvoices.filter(invoice => invoice.status === 'paid').reduce((sum, invoice) => sum + totalAmount(invoice), 0);
+    const collectedByStatus = fyInvoices.reduce((sum, invoice) => {
+      const payments = (invoice.payments || []).reduce((part, payment) => part + payment.amount, 0);
+      return sum + (invoice.status === 'paid' ? totalAmount(invoice) : payments);
+    }, 0);
     const clientTotals = new Map();
     for (const invoice of fyInvoices) {
       const name = invoice.client || 'Unknown client';
